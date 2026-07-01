@@ -2,26 +2,23 @@ name: 수영장 시간표 점검
 
 on:
   schedule:
-    # 매월 28일 오후 9시 KST (= 12:00 UTC)
-    - cron: '0 12 28 * *'
-    # 매월 1일 오후 9시 KST (= 12:00 UTC)
-    - cron: '0 12 1 * *'
-  workflow_dispatch:  # 수동 실행 가능
+    - cron: '0 12 28 * *'   # 매월 28일 오후 9시 KST
+    - cron: '0 12 1 * *'    # 매월  1일 오후 9시 KST
+  workflow_dispatch:
 
 jobs:
   check:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
 
     steps:
-      - name: 코드 체크아웃
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Node.js 설정
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: 시간표 크롤링 & 비교
         id: check
@@ -29,46 +26,51 @@ jobs:
         continue-on-error: true
 
       - name: 변경 감지 시 이슈 생성
-        if: steps.check.outputs.exitcode == '2' || steps.check.conclusion == 'failure'
+        if: steps.check.outcome == 'failure'   # exit 2 = 변경 감지
         uses: actions/github-script@v7
         with:
           script: |
-            const today = new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'long', day:'numeric'});
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('/tmp/schedule-changes.json', 'utf-8'));
+            const { date, changed, errors } = data;
+
+            // 변경 내용 요약 (사람이 읽기 쉽게)
+            const changeLines = changed.map(r => {
+              const lines = r.changes.map(c => `  - ${c.desc}`).join('\n');
+              return `### ${r.pool}\n${lines}\n[공식 사이트 확인 →](${r.url})`;
+            }).join('\n\n');
+
+            // 자동 적용을 위한 JSON (숨김)
+            const changesJson = JSON.stringify(changed);
+
+            const body = [
+              `## ⚠️ 시간표 변경 감지 (${date})`,
+              '',
+              '크롤러가 아래 수영장의 시간표 변경 가능성을 감지했습니다.',
+              '**공식 사이트에서 직접 확인 후** 댓글로 처리해 주세요.',
+              '',
+              '---',
+              '',
+              changeLines,
+              '',
+              '---',
+              '',
+              '## 처리 방법',
+              '',
+              '| 상황 | 댓글 입력 |',
+              '|------|-----------|',
+              '| 변경 내용이 맞음 → 자동 반영 | `/confirm` |',
+              '| 크롤러 오탐 → 무시 | `/reject` |',
+              '',
+              errors.length > 0 ? `> ⚠️ 크롤링 실패: ${errors.map(e=>e.pool).join(', ')}` : '',
+              '',
+              `<!-- CHANGES_JSON:${changesJson}:END -->`,
+            ].join('\n');
+
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `[자동] ${today} 수영장 시간표 변경 감지`,
-              body: [
-                '## ⚠️ 시간표 변경이 감지되었습니다',
-                '',
-                `점검 일시: ${today}`,
-                '',
-                '### 확인 필요 사항',
-                '1. [Actions 탭](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions)에서 상세 결과 확인',
-                '2. [spo.isdc.co.kr](https://spo.isdc.co.kr) 각 수영장 페이지에서 변경 내용 확인',
-                '3. `index.html`의 POOLS 데이터 수동 업데이트 후 이 이슈 닫기',
-                '',
-                '> 이 이슈는 GitHub Actions가 자동 생성했습니다.',
-              ].join('\n'),
+              title: `[자동] ${date} 시간표 변경 감지`,
+              body,
               labels: ['schedule-update'],
             });
-
-      - name: 점검 완료 알림 (이메일)
-        if: always()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: '[Swim Seongnam] 시간표 점검 완료 — ${{ steps.check.outcome == ''success'' && ''이상 없음 ✅'' || ''확인 필요 ⚠️'' }}'
-          to: ${{ secrets.MAIL_TO }}
-          from: Swim Seongnam Bot
-          body: |
-            성남 수영장 자동 시간표 점검이 완료되었습니다.
-
-            결과: ${{ steps.check.outcome == 'success' && '모든 수영장 이상 없음 ✅' || '변경 감지 또는 오류 — Actions에서 확인하세요 ⚠️' }}
-
-            상세 결과: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            웹사이트: https://aminade.github.io/seongnam-swim/
-        continue-on-error: true  # 메일 설정 안 해도 워크플로우 실패하지 않음

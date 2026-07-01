@@ -1,0 +1,132 @@
+name: 시간표 변경 적용
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  apply:
+    # /confirm 또는 /reject 댓글이고, schedule-update 이슈일 때만
+    if: |
+      (contains(github.event.comment.body, '/confirm') || contains(github.event.comment.body, '/reject')) &&
+      github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 댓글 파싱 및 처리
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = context.payload.comment.body.trim();
+            const issueBody = context.payload.issue.body || '';
+            const issueNumber = context.payload.issue.number;
+            const commenter = context.payload.comment.user.login;
+
+            // 저장소 소유자만 처리
+            if (commenter !== context.repo.owner) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `@${commenter} 저장소 소유자만 처리할 수 있습니다.`,
+              });
+              return;
+            }
+
+            if (comment.includes('/reject')) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: '🙅 크롤러 오탐으로 처리했습니다. 이슈를 닫습니다.',
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                state: 'closed',
+                state_reason: 'not_planned',
+              });
+              return;
+            }
+
+            // /confirm 처리: JSON 추출
+            const jsonMatch = issueBody.match(/<!-- CHANGES_JSON:([\s\S]*?):END -->/);
+            if (!jsonMatch) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: '❌ 변경 JSON을 찾을 수 없습니다. 수동으로 처리해 주세요.',
+              });
+              return;
+            }
+
+            // 변경 JSON을 파일로 저장해서 다음 step에 전달
+            const { execSync } = require('child_process');
+            require('fs').writeFileSync('/tmp/confirmed-changes.json', jsonMatch[1]);
+            console.log('변경 JSON 저장 완료');
+            core.setOutput('issue_number', issueNumber);
+
+      - name: index.html 업데이트
+        id: apply
+        if: contains(github.event.comment.body, '/confirm')
+        run: |
+          CHANGES=$(cat /tmp/confirmed-changes.json)
+          node scripts/apply-changes.js "$CHANGES"
+
+      - name: 커밋 & 배포
+        if: steps.apply.outcome == 'success'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "자동 반영: #${{ github.event.issue.number }} 시간표 변경 확인"
+          git push
+
+      - name: 이슈 완료 댓글 & 닫기
+        if: steps.apply.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.payload.issue.number;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: [
+                '✅ **index.html 업데이트 완료!**',
+                '',
+                'GitHub Pages 배포가 자동으로 시작됩니다 (1~2분 소요).',
+                '',
+                '🌐 https://aminade.github.io/seongnam-swim/',
+              ].join('\n'),
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              state: 'closed',
+              state_reason: 'completed',
+            });
+
+      - name: 적용 실패 시 댓글
+        if: steps.apply.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: '❌ 자동 적용 실패. Actions 로그를 확인하거나 수동으로 처리해 주세요.',
+            });
