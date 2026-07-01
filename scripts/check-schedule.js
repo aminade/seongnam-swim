@@ -1,53 +1,74 @@
 #!/usr/bin/env node
 /**
  * 성남도시개발공사 수영장 시간표 크롤러
- * 공식 사이트에서 자유수영 시간 & 휴관 정보를 가져와 index.html과 비교
+ * 자유수영 섹션만 파싱해서 index.html 데이터와 비교
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname } from 'path';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dir, '..');
 
-// 현재 index.html에 박혀있는 데이터 기준값
+// index.html 기준 자유수영 데이터
 const KNOWN = {
-  tanchen:    { closedWeeks: [1,3], weekdaySlots: ['06:00~07:50','12:00~13:50','15:00~16:50','19:00~20:50'], satSlots: ['07:00~08:50','10:00~11:50','13:00~14:50','16:00~17:50'], sunSlots: ['09:00~10:50','13:00~14:50','16:00~17:50'], weekdayPrice: {adult:3600,teen:3000,child:2400} },
-  seongnam:   { closedWeeks: [2,4], weekdaySlots: ['06:00~07:50','09:00~10:50','12:00~13:50','19:00~20:50'], satSlots: ['09:00~10:50','13:00~14:50','16:00~17:50'], sunSlots: ['09:00~10:50','13:00~14:50','16:00~17:50'], weekdayPrice: {adult:3600,teen:3000,child:2400} },
-  hwangse:    { closedWeeks: [1,3], weekdaySlots: ['06:00~06:50','07:00~07:50','10:00~10:50','11:00~11:50','16:00~16:50','17:00~17:50','19:00~19:50','20:00~20:50'], satSlots: ['10:00~11:50','13:00~14:50','16:00~17:50'], sunSlots: ['10:00~11:50','13:00~14:50','16:00~17:50'], weekdayPrice: {adult:3000,teen:2500,child:2000} },
-  pangyo:     { closedWeeks: [2,4], weekdaySlots: ['12:00~12:50'], satSlots: ['09:00~10:50','13:00~14:50','16:00~17:50'], sunSlots: ['09:00~10:50','13:00~14:50','16:00~17:50'], weekdayPrice: {adult:3000,teen:2500,child:2000} },
-  pyengsaeng: { closedWeeks: [2,4], weekdaySlots: ['16:00~17:50'], satSlots: ['10:00~11:50','13:00~14:50','16:00~17:50'], sunSlots: ['10:00~11:50','13:00~14:50','16:00~17:50'], weekdayPrice: {adult:3600,teen:3000,child:2400} },
-  geumgok:    { closedWeeks: [2,4], weekdaySlots: ['06:00~06:50','07:00~07:50','09:00~09:50','10:00~10:50','11:00~11:50','19:00~19:50','20:00~20:50'], satSlots: ['10:00~11:50','13:00~14:50','16:00~17:50'], sunSlots: ['10:00~11:50','13:00~14:50','16:00~17:50'], weekdayPrice: {adult:3000,teen:2500,child:2000} },
+  tanchen:    { closedWeeks:[1,3], weekdaySlots:['06:00~07:50','12:00~13:50','15:00~16:50','19:00~20:50'], satSlots:['07:00~08:50','10:00~11:50','13:00~14:50','16:00~17:50'], sunSlots:['09:00~10:50','13:00~14:50','16:00~17:50'], adultPrice:3600 },
+  seongnam:   { closedWeeks:[2,4], weekdaySlots:['06:00~07:50','09:00~10:50','12:00~13:50','19:00~20:50'], satSlots:['09:00~10:50','13:00~14:50','16:00~17:50'], sunSlots:['09:00~10:50','13:00~14:50','16:00~17:50'], adultPrice:3600 },
+  hwangse:    { closedWeeks:[1,3], weekdaySlots:['06:00~06:50','07:00~07:50','10:00~10:50','11:00~11:50','16:00~16:50','17:00~17:50','19:00~19:50','20:00~20:50'], satSlots:['10:00~11:50','13:00~14:50','16:00~17:50'], sunSlots:['10:00~11:50','13:00~14:50','16:00~17:50'], adultPrice:3000 },
+  pangyo:     { closedWeeks:[2,4], weekdaySlots:['12:00~12:50'], satSlots:['09:00~10:50','13:00~14:50','16:00~17:50'], sunSlots:['09:00~10:50','13:00~14:50','16:00~17:50'], adultPrice:3000 },
+  pyengsaeng: { closedWeeks:[2,4], weekdaySlots:['16:00~17:50'], satSlots:['10:00~11:50','13:00~14:50','16:00~17:50'], sunSlots:['10:00~11:50','13:00~14:50','16:00~17:50'], adultPrice:3600 },
+  geumgok:    { closedWeeks:[2,4], weekdaySlots:['06:00~06:50','07:00~07:50','09:00~09:50','10:00~10:50','11:00~11:50','19:00~19:50','20:00~20:50'], satSlots:['10:00~11:50','13:00~14:50','16:00~17:50'], sunSlots:['10:00~11:50','13:00~14:50','16:00~17:50'], adultPrice:3000 },
 };
 
 const POOLS_META = [
-  { id:'tanchen',    name:'탄천종합운동장',     url:'https://spo.isdc.co.kr/tan_programGuide.do' },
-  { id:'seongnam',   name:'성남종합운동장',     url:'https://spo.isdc.co.kr/sns_programGuide.do' },
-  { id:'hwangse',    name:'황새울국민체육센터', url:'https://spo.isdc.co.kr/programGuide.do' },
-  { id:'pangyo',     name:'판교스포츠센터',     url:'https://spo.isdc.co.kr/pgs_dailyFreeGuide.do' },
-  { id:'pyengsaeng', name:'평생스포츠센터',     url:'https://spo.isdc.co.kr/spo_programGuide.do' },
+  { id:'tanchen',    name:'탄천종합운동장',       url:'https://spo.isdc.co.kr/tan_programGuide.do' },
+  { id:'seongnam',   name:'성남종합운동장',       url:'https://spo.isdc.co.kr/sns_programGuide.do' },
+  { id:'hwangse',    name:'황새울국민체육센터',   url:'https://spo.isdc.co.kr/programGuide.do' },
+  { id:'pangyo',     name:'판교스포츠센터',       url:'https://spo.isdc.co.kr/pgs_dailyFreeGuide.do' },
+  { id:'pyengsaeng', name:'평생스포츠센터',       url:'https://spo.isdc.co.kr/spo_programGuide.do' },
   { id:'geumgok',    name:'금곡공원국민체육센터', url:'https://spo.isdc.co.kr/ggp_programGuide.do' },
 ];
 
-// 시간 슬롯 파싱: HH:MM~HH:MM 패턴 추출
-function parseSlots(html) {
-  const matches = [...html.matchAll(/(\d{2}:\d{2})\s*[~～]\s*(\d{2}:\d{2})/g)];
-  return [...new Set(matches.map(m => `${m[1]}~${m[2]}`))];
+// 자유수영 섹션 텍스트만 추출
+function extractFreeSwimSection(html) {
+  // 자유수영 키워드 주변 2000자 추출
+  const idx = html.indexOf('자유수영');
+  if (idx === -1) return '';
+  // 자유수영 섹션 이후 다음 프로그램 섹션 전까지만
+  const chunk = html.slice(Math.max(0, idx - 100), idx + 3000);
+  return chunk;
 }
 
-// 휴관 주차 파싱: "매월 X·Y번째 일요일" 패턴
+// 시간 슬롯 파싱: 60분 또는 120분짜리 슬롯만 (자유수영 길이)
+function parseSwimSlots(text) {
+  const matches = [...text.matchAll(/(\d{2}:\d{2})\s*[~～]\s*(\d{2}:\d{2})/g)];
+  const valid = [];
+  for (const m of matches) {
+    const [h1, m1] = m[1].split(':').map(Number);
+    const [h2, m2] = m[2].split(':').map(Number);
+    const dur = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (dur === 60 || dur === 120) valid.push(`${m[1]}~${m[2]}`);
+  }
+  return [...new Set(valid)];
+}
+
+// 휴관 주차 파싱
 function parseClosedWeeks(html) {
-  const m = html.match(/매월\s*([1-5])(?:[·,\s]+([1-5]))?\s*번째\s*일요일/);
-  if (!m) return null;
-  return m[2] ? [parseInt(m[1]), parseInt(m[2])] : [parseInt(m[1])];
+  const m = html.match(/매월\s*([1-5])\s*[·,]\s*([1-5])\s*번째\s*일요일/);
+  if (m) return [parseInt(m[1]), parseInt(m[2])];
+  const m2 = html.match(/매월\s*([1-5])\s*번째\s*일요일/);
+  if (m2) return [parseInt(m2[1])];
+  return null;
 }
 
-// 요금 파싱: 일반/성인 금액
-function parsePrice(html) {
-  const m = html.match(/일반[^0-9]*([0-9,]+)\s*원/);
-  if (!m) return null;
-  return parseInt(m[1].replace(/,/g, ''));
+// 요금 파싱: 2000~5000원 범위만 (회원권 제외)
+function parseAdultPrice(text) {
+  const matches = [...text.matchAll(/일반[^0-9]*?([0-9,]+)\s*원/g)];
+  for (const m of matches) {
+    const price = parseInt(m[1].replace(/,/g, ''));
+    if (price >= 2000 && price <= 6000) return price;
+  }
+  return null;
 }
 
 async function crawlPool(pool) {
@@ -58,11 +79,12 @@ async function crawlPool(pool) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
+    const section = extractFreeSwimSection(html);
+
     return {
-      slots: parseSlots(html),
+      slots: parseSwimSlots(section || html),
       closedWeeks: parseClosedWeeks(html),
-      adultPrice: parsePrice(html),
-      rawLength: html.length,
+      adultPrice: parseAdultPrice(section || html),
     };
   } catch (e) {
     return { error: e.message };
@@ -74,45 +96,48 @@ function diff(id, crawled) {
   const changes = [];
 
   if (crawled.closedWeeks) {
-    const cur = JSON.stringify(known.closedWeeks.sort());
+    const cur = JSON.stringify([...known.closedWeeks].sort());
     const got = JSON.stringify([...crawled.closedWeeks].sort());
-    if (cur !== got) changes.push(`휴관주차 변경: ${known.closedWeeks} → ${crawled.closedWeeks}`);
+    if (cur !== got) changes.push(`휴관주차 변경: ${known.closedWeeks.join('·')}번째 → ${crawled.closedWeeks.join('·')}번째 일요일`);
   }
 
-  if (crawled.adultPrice && crawled.adultPrice !== known.weekdayPrice.adult) {
-    changes.push(`요금 변경: ${known.weekdayPrice.adult}원 → ${crawled.adultPrice}원`);
+  if (crawled.adultPrice && crawled.adultPrice !== known.adultPrice) {
+    changes.push(`요금 변경: ${known.adultPrice.toLocaleString()}원 → ${crawled.adultPrice.toLocaleString()}원`);
   }
 
-  // 슬롯: 현재 known 슬롯이 크롤된 슬롯에 없으면 경고
   if (crawled.slots.length > 0) {
-    const missing = known.weekdaySlots.filter(s => !crawled.slots.includes(s));
-    const added   = crawled.slots.filter(s => !known.weekdaySlots.includes(s) && !known.satSlots?.includes(s) && !known.sunSlots?.includes(s));
-    if (missing.length) changes.push(`슬롯 사라짐: ${missing.join(', ')}`);
-    if (added.length)   changes.push(`새 슬롯 발견: ${added.join(', ')}`);
+    const allKnown = [...known.weekdaySlots, ...known.satSlots, ...known.sunSlots];
+    const missing = allKnown.filter(s => !crawled.slots.includes(s) && known.weekdaySlots.includes(s));
+    const newSlots = crawled.slots.filter(s => !allKnown.includes(s));
+    if (missing.length) changes.push(`사라진 평일 슬롯: ${missing.join(', ')}`);
+    if (newSlots.length) changes.push(`새 슬롯 감지: ${newSlots.join(', ')}`);
   }
 
   return changes;
 }
 
 async function main() {
-  console.log(`\n=== 성남 수영장 시간표 점검 (${new Date().toLocaleDateString('ko-KR')}) ===\n`);
+  const today = new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'long', day:'numeric'});
+  console.log(`\n=== 성남 수영장 시간표 점검 (${today}) ===\n`);
 
   const results = [];
   for (const pool of POOLS_META) {
     process.stdout.write(`${pool.name} 크롤링 중... `);
     const crawled = await crawlPool(pool);
+
     if (crawled.error) {
       console.log(`오류: ${crawled.error}`);
       results.push({ pool: pool.name, status: 'error', error: crawled.error });
       continue;
     }
+
     const changes = diff(pool.id, crawled);
     if (changes.length === 0) {
-      console.log('변경 없음 ✓');
+      console.log('이상 없음 ✓');
       results.push({ pool: pool.name, status: 'ok' });
     } else {
-      console.log(`\n  ⚠️  변경 감지!`);
-      changes.forEach(c => console.log(`     - ${c}`));
+      console.log('⚠️  변경 감지!');
+      changes.forEach(c => console.log(`   - ${c}`));
       results.push({ pool: pool.name, status: 'changed', changes });
     }
   }
@@ -122,42 +147,30 @@ async function main() {
 
   console.log('\n=== 요약 ===');
   if (changed.length === 0 && errors.length === 0) {
-    console.log('모든 수영장 데이터 이상 없음 ✓');
+    console.log('모든 수영장 이상 없음 ✓');
   } else {
-    if (changed.length > 0) {
-      console.log(`⚠️  ${changed.length}곳 변경 감지 → 수동 확인 후 index.html 업데이트 필요`);
-      changed.forEach(r => { console.log(`  - ${r.pool}`); r.changes.forEach(c => console.log(`    ${c}`)); });
-    }
-    if (errors.length > 0) {
-      console.log(`❌ ${errors.length}곳 크롤링 실패 (사이트 점검 중일 수 있음)`);
-    }
+    if (changed.length) console.log(`⚠️  ${changed.length}곳 변경 → index.html 수동 업데이트 필요`);
+    if (errors.length)  console.log(`❌ ${errors.length}곳 크롤링 실패`);
   }
 
-  // GitHub Actions 출력
-  const summary = changed.length > 0
-    ? `⚠️ ${changed.map(r=>r.pool).join(', ')} 시간표 변경 감지`
-    : errors.length > 0
-    ? `❌ 크롤링 일부 실패 (${errors.map(r=>r.pool).join(', ')})`
-    : '✅ 모든 수영장 이상 없음';
-
-  // GitHub Actions step summary 기록
+  // GitHub Actions step summary
   if (process.env.GITHUB_STEP_SUMMARY) {
+    const rows = results.map(r =>
+      `| ${r.pool} | ${r.status==='ok'?'✅ 이상 없음':r.status==='changed'?'⚠️ 변경됨':'❌ 오류'} | ${r.changes?.join('<br>') || r.error || '-'} |`
+    ).join('\n');
     const md = [
       `## 성남 수영장 시간표 점검 결과`,
-      `> ${new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'})} 기준`,
+      `> ${today}`,
       '',
-      summary,
+      changed.length ? `⚠️ **${changed.map(r=>r.pool).join(', ')} 변경 감지** — index.html 수동 업데이트 필요` : '✅ **모든 수영장 이상 없음**',
       '',
-      '| 수영장 | 상태 | 비고 |',
-      '|--------|------|------|',
-      ...results.map(r => `| ${r.pool} | ${r.status==='ok'?'✅ 이상 없음':r.status==='changed'?'⚠️ 변경됨':'❌ 오류'} | ${r.changes?.join('<br>') || r.error || ''} |`),
-      '',
-      changed.length > 0 ? '> **조치 필요**: index.html 데이터를 공식 사이트 기준으로 수동 업데이트하세요.' : '',
+      '| 수영장 | 상태 | 변경 내용 |',
+      '|--------|------|-----------|',
+      rows,
     ].join('\n');
     writeFileSync(process.env.GITHUB_STEP_SUMMARY, md);
   }
 
-  // 변경이 있으면 exit code 2 (Actions에서 감지용)
   process.exit(changed.length > 0 ? 2 : errors.length > 0 ? 1 : 0);
 }
 
