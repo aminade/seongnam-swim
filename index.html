@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Swim, Seongnam</title>
+<!-- Google Analytics 4 — Measurement ID를 본인 것으로 교체하세요 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-S45MTX2JXK"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-S45MTX2JXK');
+</script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
@@ -302,7 +310,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
         const b=document.createElement('button');
         b.className='tab'+(currentTab===c.id?' active':'');
         b.innerHTML=`<span class="t-main">${c.main}</span><span class="t-sub">${c.sub||'&nbsp;'}</span>`;
-        b.addEventListener('click',()=>{ currentTab=c.id; if(c.id==='today') selectedDate=new Date(today); if(c.id==='tomorrow') selectedDate=new Date(tmr); buildNav(); switchView(); });
+        b.addEventListener('click',()=>{ currentTab=c.id; if(c.id==='today') selectedDate=new Date(today); if(c.id==='tomorrow') selectedDate=new Date(tmr); buildNav(); switchView(); gtag('event','tab_'+c.id); });
         nav.appendChild(b);
       });
     }
@@ -359,7 +367,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
         const head=row.querySelector('.rhead');
 
         if(isClosed){
-          head.addEventListener('click',()=>{ expanded[pool.id]=!expanded[pool.id]; renderPools(); });
+          head.addEventListener('click',()=>{ expanded[pool.id]=!expanded[pool.id]; renderPools(); if(expanded[pool.id]) gtag('event','pool_'+pool.id,{pool_name:pool.name}); });
           if(isExp){
             const note=document.createElement('div');
             note.className='closed-note';
@@ -367,7 +375,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
             row.appendChild(note);
           }
         } else {
-          head.addEventListener('click',()=>{ expanded[pool.id]=!expanded[pool.id]; renderPools(); });
+          head.addEventListener('click',()=>{ expanded[pool.id]=!expanded[pool.id]; renderPools(); if(expanded[pool.id]) gtag('event','pool_'+pool.id,{pool_name:pool.name}); });
           const det=document.createElement('div');
           det.className='detail'+(isExp?' open':'');
           const nowMin=(new Date()).getHours()*60+(new Date()).getMinutes();
