@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자유수영 해요 🏊</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
+  background: #f7f7f7;
+  color: #111;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 히어로 ── */
+.hero {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
+  background: #5ba3c9;
+}
+.hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 55%;
+  display: block;
+}
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(0,40,80,0.28) 0%, rgba(0,20,50,0.52) 100%);
+}
+.hero-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 22px 22px;
+}
+.hero h1 {
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.7px;
+  line-height: 1.2;
+  text-shadow: 0 1px 16px rgba(0,0,0,0.22);
+}
+.hero h1 small {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.78;
+  letter-spacing: 0;
+  margin-bottom: 5px;
+}
+
+/* ── 탭바 (sticky) ── */
+.tab-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #ebebeb;
+}
+.tab-bar-inner {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  display: flex;
+  gap: 7px;
+}
+.date-chip {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 18px;
+  border-radius: 100px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.date-chip.active {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+.date-chip:hover:not(.active) {
+  border-color: #bbb;
+  color: #333;
+}
+.chip-main { font-size: 13px; font-weight: 700; line-height: 1.3; }
+.chip-sub { font-size: 11px; line-height: 1.3; opacity: 0.7; }
+.date-chip.active .chip-sub { opacity: 0.55; }
+
+/* ── 메인 ── */
+main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 20px 16px 0;
+}
+
+/* ── 요약 ── */
+.summary { margin-bottom: 18px; }
+.summary-main {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+  letter-spacing: -0.2px;
+  line-height: 1.5;
+}
+.summary-sub {
+  font-size: 13px;
+  color: #aaa;
+  margin-top: 3px;
+}
+
+/* ── 수영장 카드 ── */
+.pool-card {
+  background: #fff;
+  border-radius: 14px;
+  margin-bottom: 8px;
+  border: 1px solid #ebebeb;
+  overflow: hidden;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.pool-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.07); border-color: #ddd; }
+.pool-card.closed { opacity: 0.4; }
+.pool-card.all-done { opacity: 0.55; }
+
+.pool-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  gap: 12px;
+}
+.pool-icon {
+  font-size: 32px;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 40px;
+  text-align: center;
+}
+.pool-name-text { flex: 1; min-width: 0; }
+.pool-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.3px;
+  margin-bottom: 5px;
+}
+.pool-meta { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.tag-area { background: #f3f3f3; color: #666; }
+.tag-feature { background: #fff8e6; color: #a07000; }
+.tag-depth { background: #eff6ff; color: #2563eb; }
+.tag-closed { background: #fff0f0; color: #cc3333; }
+
+.toggle-icon {
+  color: #ccc;
+  font-size: 14px;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.toggle-icon.open { transform: rotate(180deg); }
+
+/* ── 슬롯 (펼침) ── */
+.slots-wrap {
+  display: none;
+  padding: 0 16px 16px;
+  border-top: 1px solid #f5f5f5;
+}
+.slots-wrap.open { display: block; padding-top: 14px; }
+.slots-section { margin-bottom: 12px; }
+.slots-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #c0c0c0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+.slots-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* 이용 가능 – 하늘색 */
+.slot-pill {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 5px 11px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  line-height: 1.4;
+}
+/* 현재 진행 중 */
+.slot-pill.now {
+  background: #0369a1;
+  color: #fff;
+  border-color: #0369a1;
+  font-weight: 700;
+}
+/* 종료 – 연회색 */
+.slot-pill.past {
+  background: #f5f5f5;
+  color: #ccc;
+  border-color: #ebebeb;
+}
+.slot-note { font-size: 10px; opacity: 0.6; margin-left: 2px; }
+
+/* ── 가격 ── */
+.price-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid #f5f5f5;
+}
+.price-item { display: flex; gap: 4px; align-items: baseline; font-size: 12px; }
+.price-label { color: #bbb; }
+.price-value { color: #444; font-weight: 700; }
+
+.pool-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: #bbb;
+  text-decoration: none;
+  font-family: inherit;
+  transition: color 0.1s;
+}
+.pool-link:hover { color: #555; }
+
+.closed-notice {
+  padding: 10px 16px 14px;
+  font-size: 13px;
+  color: #cc3333;
+  font-weight: 500;
+}
+
+/* ── 구분선 (열림/닫힘 사이) ── */
+.section-gap {
+  margin: 14px 0 10px;
+}
+.section-gap-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ccc;
+  letter-spacing: 0.4px;
+  margin-bottom: 8px;
+}
+
+/* ── 달력 뷰 ── */
+#calView { padding-bottom: 8px; }
+
+.cal-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 4px 14px;
+}
+.month-label {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.month-btn {
+  background: #fff;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  color: #333;
+}
+.month-btn:disabled { opacity: 0.25; cursor: default; }
+.month-btn:not(:disabled):hover { background: #f5f5f5; }
+
+.cal-grid-wrap {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #ebebeb;
+  overflow: hidden;
+  padding: 4px 8px 10px;
+}
+.cal-dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 2px;
+}
+.cal-dow {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #bbb;
+  padding: 8px 0 6px;
+}
+.cal-dow.sun { color: #e44; }
+
+.cal-body {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cal-cell {
+  background: #fafafa;
+  border-radius: 6px;
+  padding: 6px 2px 5px;
+  min-height: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.cal-cell.cal-past { opacity: 0.35; }
+.cal-cell.cal-empty { background: transparent; min-height: 0; }
+
+.cal-day-num {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.cal-day-num.sun { color: #e44; }
+.cal-day-num.today {
+  background: #111;
+  color: #fff;
+  font-weight: 700;
+}
+
+.cal-closed-tags { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.cal-tags-row {
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.cal-tag {
+  font-size: 8.5px;
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.cal-tag.open {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+.cal-tag.closed {
+  background: #fff0f0;
+  color: #c83333;
+}
+
+.cal-legend {
+  margin-top: 12px;
+  font-size: 11px;
+  color: #aaa;
+  line-height: 1.8;
+  padding: 0 2px;
+}
+
+/* ── 푸터 ── */
+footer {
+  max-width: 560px;
+  margin: 32px auto 0;
+  padding: 20px 16px 52px;
+  border-top: 1px solid #ebebeb;
+}
+.footer-notice {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.7;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.footer-meta {
+  font-size: 11px;
+  color: #bbb;
+  line-height: 1.9;
+}
+.footer-meta a { color: #bbb; text-decoration: none; }
+.footer-meta a:hover { color: #555; }
+</style>
+</head>
+<body>
+
+<!-- 히어로 -->
+<section class="hero">
+  <img
+    class="hero-img"
+    src="https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&fit=crop&w=1600&q=90"
+    alt="햇살이 비치는 야외 수영장"
+    loading="eager"
+    onerror="this.style.display='none'"
+  >
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <h1><small>성남 공공 수영장</small>자유수영 해요 🏊</h1>
+  </div>
+</section>
+
+<!-- 탭바 (sticky) -->
+<div class="tab-bar">
+  <div class="tab-bar-inner" id="dateNav"></div>
+</div>
+
+<!-- 메인 -->
+<main>
+  <!-- 오늘/내일 뷰 -->
+  <div id="dayView">
+    <div class="summary" id="summary"></div>
+    <div id="poolList"></div>
+  </div>
+
+  <!-- 달력 뷰 -->
+  <div id="calView" style="display:none">
+    <div class="cal-month-nav">
+      <button class="month-btn" id="prevMonthBtn">←</button>
+      <span class="month-label" id="calMonthLabel"></span>
+      <button class="month-btn" id="nextMonthBtn">→</button>
+    </div>
+    <div class="cal-grid-wrap">
+      <div class="cal-dow-row">
+        <div class="cal-dow sun">일</div>
+        <div class="cal-dow">월</div>
+        <div class="cal-dow">화</div>
+        <div class="cal-dow">수</div>
+        <div class="cal-dow">목</div>
+        <div class="cal-dow">금</div>
+        <div class="cal-dow">토</div>
+      </div>
+      <div class="cal-body" id="calBody"></div>
+    </div>
+    <div class="cal-legend">
+      🟢 초록 = 운영 &nbsp;·&nbsp; 🔴 빨강 = 정기휴관
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-notice">성남도시개발공사에서 운영하는 6개 수영장의 정보를 알려드려요 🏊</div>
+  <div class="footer-meta">
+    데이터 기준 · 2025년 7월<br>
+    출처 · <a href="https://spo.isdc.co.kr" target="_blank">spo.isdc.co.kr</a><br>
+    스케줄은 변경될 수 있으니 각 센터 홈페이지를 확인하세요.
+  </div>
+</footer>
+
+<script>
+// ===== 데이터 =====
+const POOLS = [
+  {
+    id: 'tanchen',
+    name: '탄천종합운동장',
+    area: '분당구 야탑동',
+    url: 'https://spo.isdc.co.kr/tan_programGuide.do',
+    closedWeeks: [1, 3],
+    feature: '50M 풀',
+    weekdaySlots: [
+      { time: '06:00~07:50', dur: 120, note: '상급자·수심 2M' },
+      { time: '12:00~13:50', dur: 120 },
+      { time: '15:00~16:50', dur: 120 },
+      { time: '19:00~20:50', dur: 120, note: '상급자·수심 2M' },
+    ],
+    saturdaySlots: [
+      { time: '07:00~08:50', dur: 120 },
+      { time: '10:00~11:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    sundaySlots: [
+      { time: '09:00~10:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    weekdayPrice: { adult: 3600, teen: 3000, child: 2400 },
+    weekendPrice: { adult: 3600, teen: 3000, child: 2400 },
+  },
+  {
+    id: 'seongnam',
+    name: '성남종합운동장',
+    area: '수정구 신흥동',
+    url: 'https://spo.isdc.co.kr/sns_programGuide.do',
+    closedWeeks: [2, 4],
+    feature: null,
+    weekdaySlots: [
+      { time: '06:00~07:50', dur: 120 },
+      { time: '09:00~10:50', dur: 120 },
+      { time: '12:00~13:50', dur: 120 },
+      { time: '19:00~20:50', dur: 120 },
+    ],
+    saturdaySlots: [
+      { time: '09:00~10:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    sundaySlots: [
+      { time: '09:00~10:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    weekdayPrice: { adult: 3600, teen: 3000, child: 2400 },
+    weekendPrice: { adult: 3600, teen: 3000, child: 2400 },
+  },
+  {
+    id: 'hwangse',
+    name: '황새울국민체육센터',
+    area: '분당구 수내동',
+    url: 'https://spo.isdc.co.kr/programGuide.do',
+    closedWeeks: [1, 3],
+    feature: null,
+    weekdaySlots: [
+      { time: '06:00~06:50', dur: 60 },
+      { time: '07:00~07:50', dur: 60 },
+      { time: '10:00~10:50', dur: 60 },
+      { time: '11:00~11:50', dur: 60 },
+      { time: '16:00~16:50', dur: 60 },
+      { time: '17:00~17:50', dur: 60 },
+      { time: '19:00~19:50', dur: 60 },
+      { time: '20:00~20:50', dur: 60 },
+    ],
+    saturdaySlots: [
+      { time: '10:00~11:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    sundaySlots: [
+      { time: '10:00~11:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    weekdayPrice: { adult: 3000, teen: 2500, child: 2000 },
+    weekendPrice: { adult: 3600, teen: 3000, child: 2400 },
+  },
+  {
+    id: 'pangyo',
+    name: '판교스포츠센터',
+    area: '분당구 삼평동',
+    url: 'https://spo.isdc.co.kr/pgs_dailyFreeGuide.do',
+    closedWeeks: [2, 4],
+    feature: null,
+    weekdaySlots: [
+      { time: '12:00~12:50', dur: 60 },
+    ],
+    saturdaySlots: [
+      { time: '09:00~10:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    sundaySlots: [
+      { time: '09:00~10:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    weekdayPrice: { adult: 3000, teen: 2500, child: 2000 },
+    weekendPrice: { adult: 3600, teen: 3000, child: 2400 },
+  },
+  {
+    id: 'pyengsaeng',
+    name: '평생스포츠센터',
+    area: '중원구 상대원동',
+    url: 'https://spo.isdc.co.kr/spo_programGuide.do',
+    closedWeeks: [2, 4],
+    feature: null,
+    weekdaySlots: [
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    saturdaySlots: [
+      { time: '10:00~11:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    sundaySlots: [
+      { time: '10:00~11:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    weekdayPrice: { adult: 3600, teen: 3000, child: 2400 },
+    weekendPrice: { adult: 3600, teen: 3000, child: 2400 },
+  },
+  {
+    id: 'geumgok',
+    name: '금곡공원국민체육센터',
+    area: '수정구 금토동',
+    url: 'https://spo.isdc.co.kr/ggp_programGuide.do',
+    closedWeeks: [2, 4],
+    feature: null,
+    weekdaySlots: [
+      { time: '06:00~06:50', dur: 60 },
+      { time: '07:00~07:50', dur: 60 },
+      { time: '09:00~09:50', dur: 60 },
+      { time: '10:00~10:50', dur: 60 },
+      { time: '11:00~11:50', dur: 60 },
+      { time: '19:00~19:50', dur: 60 },
+      { time: '20:00~20:50', dur: 60 },
+    ],
+    saturdaySlots: [
+      { time: '10:00~11:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    sundaySlots: [
+      { time: '10:00~11:50', dur: 120 },
+      { time: '13:00~14:50', dur: 120 },
+      { time: '16:00~17:50', dur: 120 },
+    ],
+    weekdayPrice: { adult: 3000, teen: 2500, child: 2000 },
+    weekendPrice: { adult: 3600, teen: 3000, child: 2400 },
+  },
+];
+
+const POOL_SHORT = {
+  tanchen: '탄천',
+  seongnam: '성남',
+  hwangse: '황새울',
+  pangyo: '판교',
+  pyengsaeng: '평생',
+  geumgok: '금곡',
+};
+
+const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+// ===== 유틸 =====
+function getNthSundayOfMonth(year, month, n) {
+  let count = 0;
+  for (let d = 1; d <= 31; d++) {
+    const date = new Date(year, month, d);
+    if (date.getMonth() !== month) break;
+    if (date.getDay() === 0) { count++; if (count === n) return d; }
+  }
+  return -1;
+}
+
+function isClosedDay(pool, date) {
+  if (date.getDay() !== 0) return false;
+  const y = date.getFullYear(), m = date.getMonth(), d = date.getDate();
+  return pool.closedWeeks.some(w => getNthSundayOfMonth(y, m, w) === d);
+}
+
+function getSlotsForDate(pool, date) {
+  const dow = date.getDay();
+  if (dow === 6) return pool.saturdaySlots;
+  if (dow === 0) return pool.sundaySlots;
+  return pool.weekdaySlots;
+}
+
+function getPriceForDate(pool, date) {
+  const dow = date.getDay();
+  return (dow === 0 || dow === 6) ? pool.weekendPrice : pool.weekdayPrice;
+}
+
+function getSlotStatus(slotTime, date) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (target > today) return 'upcoming';
+  if (target < today) return 'past';
+  const [ss, es] = slotTime.split('~');
+  const [sh, sm] = ss.split(':').map(Number);
+  const [eh, em] = es.split(':').map(Number);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  if (nowMin >= eh * 60 + em) return 'past';
+  if (nowMin >= sh * 60 + sm) return 'now';
+  return 'upcoming';
+}
+
+function hasDeepPool(pool) {
+  return pool.weekdaySlots.some(s => s.note && s.note.includes('수심'));
+}
+
+function getToday() {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return t;
+}
+
+function formatChipDate(date) {
+  return `${date.getMonth() + 1}/${date.getDate()}(${DAY_NAMES[date.getDay()]})`;
+}
+
+// ===== 상태 =====
+let currentTab = 'today';
+let selectedDate = getToday();
+const expandedPools = {};
+
+// 달력 상태
+const _now = new Date();
+let calYear = _now.getFullYear();
+let calMonth = _now.getMonth();
+const CAL_MIN_YEAR = _now.getFullYear();
+const CAL_MIN_MONTH = _now.getMonth();
+const CAL_MAX_YEAR = (_now.getMonth() === 11) ? _now.getFullYear() + 1 : _now.getFullYear();
+const CAL_MAX_MONTH = (_now.getMonth() + 1) % 12;
+
+// ===== 탭 빌드 =====
+function buildDateNav() {
+  const nav = document.getElementById('dateNav');
+  nav.innerHTML = '';
+  const today = getToday();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  const chips = [
+    { id: 'today',    main: '오늘',  sub: formatChipDate(today) },
+    { id: 'tomorrow', main: '내일',  sub: formatChipDate(tomorrow) },
+    { id: 'calendar', main: '달력보기', sub: '날짜 선택' },
+  ];
+
+  chips.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'date-chip' + (currentTab === c.id ? ' active' : '');
+    btn.innerHTML = `<span class="chip-main">${c.main}</span><span class="chip-sub">${c.sub}</span>`;
+    btn.addEventListener('click', () => {
+      currentTab = c.id;
+      if (c.id === 'today') selectedDate = new Date(today);
+      if (c.id === 'tomorrow') selectedDate = new Date(tomorrow);
+      buildDateNav();
+      switchView();
+    });
+    nav.appendChild(btn);
+  });
+}
+
+function switchView() {
+  if (currentTab === 'calendar') {
+    document.getElementById('dayView').style.display = 'none';
+    document.getElementById('calView').style.display = 'block';
+    buildCalendar();
+  } else {
+    document.getElementById('dayView').style.display = 'block';
+    document.getElementById('calView').style.display = 'none';
+    renderPools();
+  }
+}
+
+// ===== 일/이틀 뷰 =====
+function renderPools() {
+  const today = getToday();
+  const isToday = selectedDate.getTime() === today.getTime();
+
+  const openList = POOLS.filter(p => !isClosedDay(p, selectedDate));
+  const openCount = openList.length;
+  const closedCount = POOLS.length - openCount;
+
+  let mainText = '', subText = '';
+  if (openCount === 0) {
+    mainText = '오늘은 모든 수영장이 정기휴관이에요 😔';
+  } else if (isToday) {
+    const hasUpcoming = openList.some(p =>
+      getSlotsForDate(p, selectedDate).some(s => getSlotStatus(s.time, selectedDate) !== 'past')
+    );
+    if (!hasUpcoming) {
+      mainText = '오늘 자유수영은 모두 종료됐어요 🌅';
+      subText = '내일 또 만나요!';
+    } else {
+      mainText = `${openCount}개 수영장에서 자유수영을 할 수 있어요`;
+      if (closedCount > 0) subText = `${closedCount}곳은 오늘 정기휴관`;
+    }
+  } else {
+    const m = selectedDate.getMonth() + 1;
+    const d = selectedDate.getDate();
+    mainText = `${m}/${d}(${DAY_NAMES[selectedDate.getDay()]}) · ${openCount}개 수영장 운영`;
+    if (closedCount > 0) subText = `${closedCount}곳 정기휴관`;
+  }
+
+  document.getElementById('summary').innerHTML =
+    `<div class="summary-main">${mainText}</div>` +
+    (subText ? `<div class="summary-sub">${subText}</div>` : '');
+
+  const sorted = [...POOLS].sort((a, b) =>
+    (isClosedDay(a, selectedDate) ? 1 : 0) - (isClosedDay(b, selectedDate) ? 1 : 0)
+  );
+
+  const list = document.getElementById('poolList');
+  list.innerHTML = '';
+
+  const hasOpen = sorted.some(p => !isClosedDay(p, selectedDate));
+  const hasClosed = sorted.some(p => isClosedDay(p, selectedDate));
+  let dividerAdded = false;
+
+  sorted.forEach(pool => {
+    const closed = isClosedDay(pool, selectedDate);
+    const allDone = !closed && isToday &&
+      getSlotsForDate(pool, selectedDate).every(s => getSlotStatus(s.time, selectedDate) === 'past');
+    const icon = closed ? '🚫' : allDone ? '🌙' : '🏊🏻‍♂️';
+    const isExpanded = expandedPools[pool.id];
+
+    if (closed && !dividerAdded && hasOpen && hasClosed) {
+      const div = document.createElement('div');
+      div.className = 'section-gap';
+      div.innerHTML = '<div class="section-gap-label">정기휴관</div>';
+      list.appendChild(div);
+      dividerAdded = true;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'pool-card' + (closed ? ' closed' : allDone ? ' all-done' : '');
+
+    const header = document.createElement('div');
+    header.className = 'pool-header';
+    header.innerHTML = `
+      <div class="pool-icon">${icon}</div>
+      <div class="pool-name-text">
+        <div class="pool-name">${pool.name}</div>
+        <div class="pool-meta">
+          <span class="tag tag-area">${pool.area}</span>
+          ${pool.feature ? `<span class="tag tag-feature">${pool.feature}</span>` : ''}
+          ${hasDeepPool(pool) ? `<span class="tag tag-depth">수심 2M</span>` : ''}
+          ${closed ? `<span class="tag tag-closed">정기휴관</span>` : ''}
+        </div>
+      </div>
+      <span class="toggle-icon ${isExpanded ? 'open' : ''}">⌄</span>
+    `;
+    header.addEventListener('click', () => {
+      expandedPools[pool.id] = !expandedPools[pool.id];
+      renderPools();
+    });
+    card.appendChild(header);
+
+    if (closed) {
+      const notice = document.createElement('div');
+      notice.className = 'closed-notice';
+      notice.textContent = `매월 ${pool.closedWeeks.join(', ')}번째 일요일 정기휴관`;
+      if (isExpanded) card.appendChild(notice);
+    } else {
+      const slots = getSlotsForDate(pool, selectedDate);
+      const price = getPriceForDate(pool, selectedDate);
+      const body = document.createElement('div');
+      body.className = 'slots-wrap' + (isExpanded ? ' open' : '');
+
+      const upcoming = slots.filter(s => getSlotStatus(s.time, selectedDate) !== 'past');
+      const past = slots.filter(s => getSlotStatus(s.time, selectedDate) === 'past');
+
+      let html = '';
+
+      if (upcoming.length > 0) {
+        html += `<div class="slots-section"><div class="slots-label">이용 가능</div><div class="slots-grid">`;
+        upcoming.forEach(s => {
+          const st = getSlotStatus(s.time, selectedDate);
+          html += `<div class="slot-pill ${st === 'now' ? 'now' : ''}">
+            ${s.time}<span class="slot-note">${s.dur === 120 ? '2h' : '1h'}${s.note ? ' · ' + s.note : ''}</span>
+          </div>`;
+        });
+        html += `</div></div>`;
+      }
+
+      if (past.length > 0 && isToday) {
+        html += `<div class="slots-section"><div class="slots-label">종료</div><div class="slots-grid">`;
+        past.forEach(s => {
+          html += `<div class="slot-pill past">${s.time}</div>`;
+        });
+        html += `</div></div>`;
+      }
+
+      html += `<div class="price-row">
+        <div class="price-item"><span class="price-label">일반</span><span class="price-value">${price.adult.toLocaleString()}원</span></div>
+        <div class="price-item"><span class="price-label">청소년</span><span class="price-value">${price.teen.toLocaleString()}원</span></div>
+        <div class="price-item"><span class="price-label">어린이</span><span class="price-value">${price.child.toLocaleString()}원</span></div>
+      </div>`;
+      html += `<a href="${pool.url}" target="_blank" class="pool-link">자세히 보기 →</a>`;
+
+      body.innerHTML = html;
+      card.appendChild(body);
+    }
+
+    list.appendChild(card);
+  });
+}
+
+// ===== 달력 뷰 =====
+function buildCalendar() {
+  // 월 레이블
+  document.getElementById('calMonthLabel').textContent =
+    `${calYear}년 ${calMonth + 1}월`;
+
+  // 버튼 활성화
+  const prevBtn = document.getElementById('prevMonthBtn');
+  const nextBtn = document.getElementById('nextMonthBtn');
+  const atMin = calYear === CAL_MIN_YEAR && calMonth === CAL_MIN_MONTH;
+  const atMax = calYear === CAL_MAX_YEAR && calMonth === CAL_MAX_MONTH;
+  prevBtn.disabled = atMin;
+  nextBtn.disabled = atMax;
+
+  prevBtn.onclick = () => {
+    if (atMin) return;
+    calMonth--;
+    if (calMonth < 0) { calMonth = 11; calYear--; }
+    buildCalendar();
+  };
+  nextBtn.onclick = () => {
+    if (atMax) return;
+    calMonth++;
+    if (calMonth > 11) { calMonth = 0; calYear++; }
+    buildCalendar();
+  };
+
+  renderCalendarGrid();
+}
+
+function renderCalendarGrid() {
+  const body = document.getElementById('calBody');
+  const firstDay = new Date(calYear, calMonth, 1);
+  const lastDay = new Date(calYear, calMonth + 1, 0);
+  const startDow = firstDay.getDay();
+  const today = getToday();
+
+  let html = '';
+
+  // 빈 칸
+  for (let i = 0; i < startDow; i++) {
+    html += `<div class="cal-cell cal-empty"></div>`;
+  }
+
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const date = new Date(calYear, calMonth, d);
+    const dow = date.getDay();
+    const isToday = date.getTime() === today.getTime();
+    const isPast = date < today;
+    const isSunday = dow === 0;
+
+    let cls = 'cal-cell';
+    if (isSunday) cls += ' cal-sunday';
+    if (isPast) cls += ' cal-past';
+
+    // 6개 수영장 전체 태그 (열림/닫힘)
+    const poolTags = POOLS.map(p => {
+      const c = isClosedDay(p, date);
+      return `<span class="cal-tag ${c ? 'closed' : 'open'}">${POOL_SHORT[p.id]}</span>`;
+    });
+    let tagsHtml = '<div class="cal-closed-tags">';
+    for (let r = 0; r < poolTags.length; r += 3) {
+      tagsHtml += `<div class="cal-tags-row">${poolTags.slice(r, r + 3).join('')}</div>`;
+    }
+    tagsHtml += '</div>';
+
+    html += `
+      <div class="${cls}">
+        <div class="cal-day-num${isSunday ? ' sun' : ''}${isToday ? ' today' : ''}">${d}</div>
+        ${tagsHtml}
+      </div>`;
+  }
+
+  body.innerHTML = html;
+}
+
+// ===== 초기화 =====
+buildDateNav();
+renderPools();
+</script>
+</body>
+</html>
