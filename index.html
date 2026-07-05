@@ -4,16 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Swim, Seongnam</title>
-<!-- Google Analytics 4 — Measurement ID를 본인 것으로 교체하세요 -->
+<!-- Google Analytics 4 -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-S45MTX2JXK"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', 'G-S45MTX2JXK');
+  // ?notrack=1 이거나 localStorage에 notrack 설정된 경우 추적 제외
+  if (new URLSearchParams(location.search).get('notrack') === '1') {
+    localStorage.setItem('sw_notrack', '1');
+  }
+  if (localStorage.getItem('sw_notrack') === '1') {
+    window['ga-disable-G-S45MTX2JXK'] = true;
+  } else {
+    gtag('config', 'G-S45MTX2JXK');
+  }
 </script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;800&family=Sora:wght@500;600&display=swap" rel="stylesheet">
 <style>
 
 :root { color-scheme: light; }
@@ -153,6 +164,88 @@
 .footer-meta a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line-strong); }
 .footer-meta a:hover { color: var(--teal); }
 
+/* ===== 피드백 기능 ===== */
+@keyframes fbFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fbUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fbPop { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+
+/* 진입점 — 푸터 고스트 버튼 */
+.fb-entry { margin-top: 18px; width: 100%; border: 1.5px solid var(--teal-line); border-radius: 11px; padding: 11px 0; text-align: center; cursor: pointer; background: transparent; font-family: inherit; transition: background .15s, border-color .15s; }
+.fb-entry:hover { background: #f3fafd; border-color: var(--teal); }
+.fb-entry-row { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.fb-entry-row .fb-entry-icon { font-size: 14px; color: var(--teal); }
+.fb-entry-row .fb-entry-title { font-size: 13px; font-weight: 600; color: var(--teal); }
+.fb-entry-sub { font-size: 11px; color: #a8bccb; margin-top: 3px; }
+
+/* 오버레이 셸 */
+.fb-overlay { position: fixed; inset: 0; z-index: 100; }
+.fb-backdrop { position: absolute; inset: 0; background: rgba(16,48,63,.55); animation: fbFade .22s ease both; }
+.fb-sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 94%; overflow-y: auto; background: var(--surface); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 34px rgba(0,0,0,.3); animation: fbUp .3s cubic-bezier(.2,.8,.2,1) both; }
+.fb-handle { width: 38px; height: 4px; border-radius: 3px; background: var(--line); margin: 0 auto 16px; }
+.fb-form { padding: 18px 22px 26px; }
+.fb-title { font-family: var(--sans); font-weight: 800; font-size: 18px; color: var(--text); letter-spacing: -.3px; }
+
+/* 탭 토글 */
+.fb-tabs { display: flex; gap: 6px; background: var(--surface-2); border-radius: 10px; padding: 4px; margin-top: 15px; }
+.fb-tab { flex: 1; text-align: center; padding: 9px 0; font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--muted); background: transparent; border: none; border-radius: 7px; cursor: pointer; }
+.fb-tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(16,48,63,.1); }
+
+/* 레이블 / 페인 */
+.fb-label { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .4px; margin: 17px 0 7px; }
+.fb-pane[hidden] { display: none; }
+
+/* 선택 필드 + 드롭다운 */
+.fb-fields { display: flex; gap: 8px; }
+.fb-field { flex: 1; position: relative; }
+.fb-select { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 11px 12px; font-size: 13px; font-weight: 600; color: var(--text); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.fb-select.empty { color: var(--faint); }
+.fb-select.open { border: 1.5px solid var(--teal); background: var(--surface); }
+.fb-select .fb-caret { color: var(--faint); }
+.fb-dropdown { position: absolute; left: 0; right: 0; top: 46px; z-index: 5; background: var(--surface); border: 1px solid var(--teal-line); border-radius: 10px; overflow: hidden; box-shadow: 0 8px 22px rgba(16,48,63,.16); }
+.fb-dropdown[hidden] { display: none; }
+.fb-option { padding: 11px 14px; font-size: 13px; font-weight: 500; color: var(--text); border-top: 1px solid var(--surface-2); cursor: pointer; }
+.fb-option:first-child { border-top: none; }
+.fb-option.sel { font-weight: 600; color: var(--teal); background: var(--surface-2); }
+
+/* 유형 칩 */
+.fb-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.fb-chip { border: 1px solid var(--line); border-radius: 20px; padding: 8px 13px; font-size: 12px; font-weight: 500; color: var(--muted); background: transparent; font-family: inherit; cursor: pointer; }
+.fb-chip.active { border: 1.5px solid var(--teal); background: var(--surface-2); font-weight: 600; color: var(--text); }
+
+/* textarea */
+.fb-textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-height: 76px; font-family: inherit; font-size: 13px; line-height: 1.6; color: var(--text); resize: none; outline: none; }
+.fb-textarea.lg { min-height: 96px; }
+.fb-textarea::placeholder { color: var(--faint); }
+.fb-textarea:focus { border-color: var(--teal); }
+
+/* 스크린샷 첨부 */
+.fb-attach { display: flex; gap: 10px; margin-top: 12px; }
+.fb-attach-box { width: 62px; height: 62px; border: 1.5px dashed var(--teal-line); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; background: #f8fcfe; cursor: pointer; flex: none; }
+.fb-attach-box .fb-attach-plus { font-size: 18px; color: var(--teal); }
+.fb-attach-box .fb-attach-cap { font-size: 9px; color: var(--muted); }
+.fb-attach-hint { flex: 1; display: flex; align-items: center; font-size: 10.5px; line-height: 1.5; color: var(--faint); padding-left: 2px; }
+.fb-thumb { width: 62px; height: 62px; border-radius: 10px; position: relative; overflow: hidden; border: 1px solid var(--line); flex: none; }
+.fb-thumb[hidden], .fb-attach-box[hidden], .fb-attach-hint[hidden] { display: none; }
+.fb-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fb-thumb-remove { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%; background: rgba(16,48,63,.65); color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+/* 보내기 버튼 + 익명 안내 */
+.fb-submit { margin-top: 16px; width: 100%; border: none; border-radius: 11px; padding: 15px 0; text-align: center; font-family: inherit; font-size: 14px; font-weight: 700; color: #fff; background: var(--teal); cursor: pointer; }
+.fb-submit.disabled { background: var(--teal-line); opacity: .7; cursor: default; }
+.fb-anon { text-align: center; font-size: 10.5px; color: var(--faint); margin-top: 11px; }
+
+/* 완료 화면 */
+.fb-done { padding: 34px 26px 30px; text-align: center; }
+.fb-done[hidden], .fb-form[hidden] { display: none; }
+.fb-badge { width: 62px; height: 62px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; margin: 0 auto; animation: fbPop .4s ease both; }
+.fb-badge-inner { width: 40px; height: 40px; border-radius: 50%; background: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; }
+.fb-done-title { font-family: var(--sans); font-weight: 800; font-size: 19px; color: var(--text); letter-spacing: -.3px; margin-top: 20px; }
+.fb-done-body { font-size: 13px; line-height: 1.7; color: var(--muted); margin-top: 9px; }
+.fb-summary { display: inline-flex; align-items: center; gap: 8px; margin-top: 20px; background: var(--bg); border: 1px solid var(--line); border-radius: 20px; padding: 8px 14px; }
+.fb-summary-icon { font-size: 13px; }
+.fb-summary-text { font-size: 12px; font-weight: 600; color: var(--text); }
+.fb-close { margin-top: 26px; width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; padding: 15px 0; font-family: inherit; font-size: 14px; font-weight: 700; color: var(--teal); cursor: pointer; }
+
 </style>
 </head>
 <body>
@@ -202,7 +295,81 @@
       성남도시개발공사 운영 6개 수영장 · 데이터 기준 2025년 7월<br>
       출처 <a href="https://spo.isdc.co.kr" target="_blank">spo.isdc.co.kr</a> · 스케줄은 변경될 수 있으니 각 센터 홈페이지를 확인하세요.
     </div>
+    <button type="button" class="fb-entry" id="fbEntry">
+      <div class="fb-entry-row"><span class="fb-entry-icon">✎</span><span class="fb-entry-title">피드백 보내기</span></div>
+      <div class="fb-entry-sub">잘못된 정보·불편한 점을 알려주세요</div>
+    </button>
   </footer>
+
+  <!-- ===== 피드백 바텀시트 ===== -->
+  <div class="fb-overlay" id="fbOverlay" hidden>
+    <div class="fb-backdrop" id="fbBackdrop"></div>
+    <div class="fb-sheet" role="dialog" aria-modal="true" aria-label="피드백 보내기">
+
+      <!-- 폼 -->
+      <div class="fb-form" id="fbForm">
+        <div class="fb-handle"></div>
+        <div class="fb-title">피드백 보내기</div>
+
+        <div class="fb-tabs">
+          <button type="button" class="fb-tab active" data-tab="report">⚑ 잘못된 정보</button>
+          <button type="button" class="fb-tab" data-tab="improve">✎ 불편한 점</button>
+        </div>
+
+        <!-- 탭 A: 잘못된 정보 -->
+        <div class="fb-pane" id="fbPaneReport">
+          <div class="fb-label">어느 정보인가요?</div>
+          <div class="fb-fields">
+            <div class="fb-field">
+              <div class="fb-select empty" id="fbPoolField"><span id="fbPoolLabel">수영장 선택</span><span class="fb-caret">⌄</span></div>
+              <div class="fb-dropdown" id="fbPoolDrop" hidden></div>
+            </div>
+            <div class="fb-field">
+              <div class="fb-select empty" id="fbItemField"><span id="fbItemLabel">항목 (선택)</span><span class="fb-caret">⌄</span></div>
+              <div class="fb-dropdown" id="fbItemDrop" hidden></div>
+            </div>
+          </div>
+          <div class="fb-label">올바른 정보</div>
+          <textarea class="fb-textarea" id="fbReportText" placeholder="예) 평일 15:00 자유수영은 없어졌어요. 실제로는 16:00부터예요."></textarea>
+        </div>
+
+        <!-- 탭 B: 불편한 점 -->
+        <div class="fb-pane" id="fbPaneImprove" hidden>
+          <div class="fb-label">어떤 점이 불편했나요?</div>
+          <div class="fb-chips" id="fbChips"></div>
+          <div class="fb-label">자세한 내용</div>
+          <textarea class="fb-textarea lg" id="fbImproveText" placeholder="예) 캘린더에서 특정 수영장만 골라 보고 싶어요. 지금은 전체가 다 보여서 찾기 힘들어요."></textarea>
+        </div>
+
+        <!-- 스크린샷 첨부 (공통) -->
+        <div class="fb-attach">
+          <label class="fb-attach-box" id="fbAttachBox">
+            <span class="fb-attach-plus">＋</span><span class="fb-attach-cap">스샷</span>
+            <input type="file" accept="image/*" id="fbFile" hidden>
+          </label>
+          <div class="fb-thumb" id="fbThumb" hidden>
+            <img id="fbThumbImg" alt="첨부 미리보기">
+            <div class="fb-thumb-remove" id="fbThumbRemove" title="첨부 제거">×</div>
+          </div>
+          <div class="fb-attach-hint" id="fbAttachHint">스크린샷을 첨부하면<br>확인이 더 빨라져요 (선택)</div>
+        </div>
+
+        <button type="button" class="fb-submit disabled" id="fbSubmit">보내기</button>
+        <div class="fb-anon">익명으로 전송돼요 · 개인정보를 수집하지 않아요</div>
+      </div>
+
+      <!-- 완료 화면 -->
+      <div class="fb-done" id="fbDone" hidden>
+        <div class="fb-handle"></div>
+        <div class="fb-badge"><span class="fb-badge-inner">✓</span></div>
+        <div class="fb-done-title">피드백을 보냈어요</div>
+        <div class="fb-done-body">확인 후 정보에 반영할게요.<br>함께 고쳐주셔서 고마워요.</div>
+        <div class="fb-summary"><span class="fb-summary-icon" id="fbSummaryIcon">⚑</span><span class="fb-summary-text" id="fbSummaryText"></span></div>
+        <button type="button" class="fb-close" id="fbClose">닫기</button>
+      </div>
+
+    </div>
+  </div>
 
 </div>
 <script>
@@ -437,6 +604,152 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       let axisHtml=''; for(let H=6;H<=22;H++) axisHtml+=`<span style="left:${xOf(H*60)}px">${H}</span>`;
       document.getElementById('calTl').innerHTML=`<div class="grid-layer"></div><div class="axisrow"><div class="axis-sp"></div><div class="axis">${axisHtml}</div></div>${rowsHtml}`;
     }
+
+    // ===== 피드백 기능 =====
+    (function initFeedback() {
+      const ITEMS = ['자유수영 시간표','요금','휴관일 · 휴관 주','운영 상태','위치 · 주소','기타'];
+      const CATS  = ['사용법이 헷갈려요','원하는 정보가 없어요','보기 불편해요','기능 제안','기타'];
+      const POOL_NAMES = POOLS.map(p => p.name);
+
+      const $ = id => document.getElementById(id);
+      const overlay = $('fbOverlay');
+      if (!overlay) return;
+
+      const fbState = { tab:'report', poolOpen:false, itemOpen:false, pool:'', item:'', cat:'', img:null };
+
+      // 드롭다운 옵션 채우기
+      function buildOptions(dropEl, list, getSel, onPick) {
+        dropEl.innerHTML = '';
+        list.forEach(function(val) {
+          const row = document.createElement('div');
+          row.className = 'fb-option';
+          row.textContent = val;
+          row.addEventListener('click', function() { onPick(val); });
+          dropEl.appendChild(row);
+        });
+      }
+      buildOptions($('fbPoolDrop'), POOL_NAMES, () => fbState.pool, function(v) { fbState.pool = v; fbState.poolOpen = false; render(); });
+      buildOptions($('fbItemDrop'), ITEMS, () => fbState.item, function(v) { fbState.item = v; fbState.itemOpen = false; render(); });
+
+      // 유형 칩
+      CATS.forEach(function(c) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'fb-chip';
+        chip.textContent = c;
+        chip.dataset.cat = c;
+        chip.addEventListener('click', function() { fbState.cat = c; render(); });
+        $('fbChips').appendChild(chip);
+      });
+
+      function canSubmit() {
+        return fbState.tab === 'report'
+          ? !!fbState.pool && $('fbReportText').value.trim().length > 0
+          : !!fbState.cat && $('fbImproveText').value.trim().length > 0;
+      }
+
+      function render() {
+        // 탭
+        document.querySelectorAll('.fb-tab').forEach(function(t) {
+          t.classList.toggle('active', t.dataset.tab === fbState.tab);
+        });
+        $('fbPaneReport').hidden = fbState.tab !== 'report';
+        $('fbPaneImprove').hidden = fbState.tab !== 'improve';
+
+        // 수영장 필드
+        const poolField = $('fbPoolField');
+        $('fbPoolLabel').textContent = fbState.pool || '수영장 선택';
+        poolField.classList.toggle('empty', !fbState.pool && !fbState.poolOpen);
+        poolField.classList.toggle('open', fbState.poolOpen);
+        $('fbPoolDrop').hidden = !fbState.poolOpen;
+
+        // 항목 필드
+        const itemField = $('fbItemField');
+        $('fbItemLabel').textContent = fbState.item || '항목 (선택)';
+        itemField.classList.toggle('empty', !fbState.item && !fbState.itemOpen);
+        itemField.classList.toggle('open', fbState.itemOpen);
+        $('fbItemDrop').hidden = !fbState.itemOpen;
+
+        // 드롭다운 선택 표시
+        $('fbPoolDrop').querySelectorAll('.fb-option').forEach(function(r) { r.classList.toggle('sel', r.textContent === fbState.pool); });
+        $('fbItemDrop').querySelectorAll('.fb-option').forEach(function(r) { r.classList.toggle('sel', r.textContent === fbState.item); });
+
+        // 칩 선택 표시
+        $('fbChips').querySelectorAll('.fb-chip').forEach(function(c) { c.classList.toggle('active', c.dataset.cat === fbState.cat); });
+
+        // 첨부
+        const hasImg = !!fbState.img;
+        $('fbThumb').hidden = !hasImg;
+        $('fbAttachBox').hidden = hasImg;
+        $('fbAttachHint').hidden = hasImg;
+        if (hasImg) $('fbThumbImg').src = fbState.img;
+
+        // 보내기 버튼
+        $('fbSubmit').classList.toggle('disabled', !canSubmit());
+      }
+
+      function resetForm() {
+        fbState.tab = 'report'; fbState.poolOpen = false; fbState.itemOpen = false;
+        fbState.pool = ''; fbState.item = ''; fbState.cat = ''; fbState.img = null;
+        $('fbReportText').value = ''; $('fbImproveText').value = ''; $('fbFile').value = '';
+        $('fbForm').hidden = false; $('fbDone').hidden = true;
+        render();
+      }
+
+      function openSheet() { resetForm(); overlay.hidden = false; }
+      function closeSheet() { overlay.hidden = true; fbState.poolOpen = false; fbState.itemOpen = false; }
+
+      // 진입 버튼
+      $('fbEntry').addEventListener('click', openSheet);
+      $('fbBackdrop').addEventListener('click', closeSheet);
+      $('fbClose').addEventListener('click', closeSheet);
+
+      // 탭 전환
+      document.querySelectorAll('.fb-tab').forEach(function(t) {
+        t.addEventListener('click', function() {
+          fbState.tab = t.dataset.tab; fbState.poolOpen = false; fbState.itemOpen = false; render();
+        });
+      });
+
+      // 드롭다운 토글 (상호 배타)
+      $('fbPoolField').addEventListener('click', function() { fbState.poolOpen = !fbState.poolOpen; fbState.itemOpen = false; render(); });
+      $('fbItemField').addEventListener('click', function() { fbState.itemOpen = !fbState.itemOpen; fbState.poolOpen = false; render(); });
+
+      // textarea 입력 → 버튼 상태 갱신
+      $('fbReportText').addEventListener('input', render);
+      $('fbImproveText').addEventListener('input', render);
+
+      // 파일 첨부
+      $('fbFile').addEventListener('change', function(e) {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = function() { fbState.img = r.result; render(); };
+        r.readAsDataURL(f);
+      });
+      $('fbThumbRemove').addEventListener('click', function() { fbState.img = null; $('fbFile').value = ''; render(); });
+
+      // 제출
+      $('fbSubmit').addEventListener('click', function() {
+        if (!canSubmit()) return;
+        let icon, color, text;
+        if (fbState.tab === 'report') {
+          icon = '⚑'; color = 'var(--sun)';
+          text = fbState.pool + (fbState.item ? ' · ' + fbState.item : '');
+        } else {
+          icon = '✎'; color = 'var(--teal)';
+          text = fbState.cat;
+        }
+        // (실제 연동 시 여기서 익명 페이로드를 백엔드로 전송)
+        // { type, pool, item, text, hasImage, createdAt }
+        $('fbSummaryIcon').textContent = icon;
+        $('fbSummaryIcon').style.color = color;
+        $('fbSummaryText').textContent = text;
+        $('fbForm').hidden = true; $('fbDone').hidden = false;
+      });
+
+      render();
+    })();
 
     buildNav();
     renderPools();
