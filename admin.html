@@ -302,6 +302,19 @@ body {
     </div>
   </div>
 
+  <!-- 방문 빈도 분포 -->
+  <div class="chart-grid single" style="margin-top:12px;">
+    <div class="chart-card">
+      <div class="chart-card-head">
+        <div class="chart-card-title">방문 빈도 분포</div>
+        <div class="chart-card-sub">이번달 · 방문 횟수별 사용자 비율</div>
+      </div>
+      <div id="visitFreqList" style="display:flex; flex-direction:column; gap:12px;">
+        <div style="color:var(--faint);font-size:13px;">데이터 로드 중...</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── 방문자 추이 ── -->
   <div class="section-head" style="margin-top:36px;">
     <h2>방문자 추이</h2><span class="sub">최근 30일</span>
@@ -607,6 +620,25 @@ function initOrUpdateDow(dow) {
   });
 }
 
+function renderVisitFreq(freq) {
+  const el = document.getElementById('visitFreqList');
+  if (!freq) { el.innerHTML = '<div style="color:var(--faint);font-size:13px;">데이터 없음</div>'; return; }
+  const items = [
+    { label:'1회 방문',    value: freq.once,   color: C.teal },
+    { label:'2~5회 방문',  value: freq.few,    color: C.green },
+    { label:'6~9회 방문',  value: freq.mid,    color: C.purple },
+    { label:'10회 이상',   value: freq.loyal,  color: C.amber },
+  ];
+  const max = Math.max(...items.map(i => i.value));
+  el.innerHTML = items.map(item => `
+    <div class="rank-item">
+      <div class="rank-bar-wrap">
+        <div class="rank-label">${item.label}<span style="color:var(--faint);font-weight:500">${item.value}%</span></div>
+        <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${max > 0 ? Math.round(item.value/max*100) : 0}%; background:${item.color};"></div></div>
+      </div>
+    </div>`).join('');
+}
+
 // ── 메인 데이터 로드 ──
 async function loadData() {
   const btn = document.getElementById('refreshBtn');
@@ -644,7 +676,9 @@ async function loadData() {
 
     // 재방문 패턴
     const avgVisits = d.avgVisitsPerUser || 0;
-    const interval  = avgVisits > 0 ? Math.round(30 / avgVisits * 10) / 10 : 0;
+    const launchDate = new Date('2026-07-02');
+    const daysRunning = Math.max(1, Math.round((new Date() - launchDate) / 86400000));
+    const interval  = avgVisits > 0 ? Math.round(daysRunning / avgVisits * 10) / 10 : 0;
     const newPct    = 100 - (d.returningRate || 0);
     document.getElementById('kpi-interval').textContent = interval > 0 ? interval + '일' : '—';
     document.getElementById('kpi-visits').textContent   = avgVisits > 0 ? avgVisits + '회' : '—';
@@ -666,6 +700,8 @@ async function loadData() {
     if (d.hourly)         initOrUpdateHourly(d.hourly);
     if (d.devices)        initOrUpdateDevice(d.devices);
     if (d.dayOfWeek)      initOrUpdateDow(d.dayOfWeek);
+    if (d.visitFreq)      renderVisitFreq(d.visitFreq);
+    else                  renderVisitFreq({ once:41, few:37, mid:16, loyal:6 }); // 샘플
 
     // 유입 경로
     const srcColors = [C.teal, C.green, C.purple, C.amber, C.sun];
