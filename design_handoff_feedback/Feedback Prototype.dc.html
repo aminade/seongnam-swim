@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;800&family=Sora:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#d7e2e9;font-family:'Pretendard',-apple-system,sans-serif;display:flex;justify-content:center;padding:26px 0;min-height:100vh}
+  *{box-sizing:border-box}
+  .frame{width:402px;height:812px;background:#f1f9fd;border-radius:30px;border:1px solid rgba(16,48,63,.14);overflow:hidden;position:relative;box-shadow:0 14px 46px rgba(16,48,63,.18)}
+  .scroll{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .scroll::-webkit-scrollbar{width:0}
+  @keyframes fbFade{from{opacity:0}to{opacity:1}}
+  @keyframes fbUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  @keyframes fbPop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+  textarea{font-family:'Pretendard',sans-serif;resize:none;outline:none}
+  textarea::placeholder{color:#9db6c4}
+</style>
+</helmet>
+
+<div class="frame">
+  <div class="scroll">
+    <!-- hero -->
+    <div style="height:200px;background:linear-gradient(158deg,#b3e2f7 0%,#63b6e7 42%,#2e88c0 100%);position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:22px 24px 26px">
+      <div style="position:absolute;inset:0;background:linear-gradient(176deg,rgba(20,60,85,0) 34%,rgba(9,37,53,.52) 100%)"></div>
+      <div style="position:relative;font:600 9px 'Pretendard';letter-spacing:2.3px;color:rgba(255,255,255,.85)">SEONGNAM · 6 POOLS</div>
+      <div style="position:relative;width:32px;height:1px;background:rgba(255,255,255,.5);margin:10px 0 13px"></div>
+      <div style="position:relative;font:800 27px 'Noto Sans KR';color:#fff;letter-spacing:-.4px;line-height:1.3">오늘 어디서<br>수영할까</div>
+    </div>
+    <!-- tabs -->
+    <div style="display:flex;gap:28px;padding:0 24px;border-bottom:1px solid #d9edf7;background:#f1f9fd">
+      <div style="padding:18px 0 14px;border-bottom:2px solid #1fa6e8;font:600 14px 'Pretendard';color:#10303f">수영장</div>
+      <div style="padding:18px 0 14px;font:600 14px 'Pretendard';color:#9db6c4">캘린더</div>
+    </div>
+    <!-- rows -->
+    <div style="padding:2px 24px">
+      <div style="display:flex;align-items:center;gap:13px;padding:17px 0;border-bottom:1px solid #d9edf7">
+        <div style="width:7px;height:7px;border-radius:50%;background:#2bb888;box-shadow:0 0 0 3px rgba(43,184,136,.16);margin-top:6px;align-self:flex-start"></div>
+        <div style="flex:1"><div style="font:700 18px 'Noto Sans KR';color:#10303f">탄천종합운동장</div><div style="font:11.5px 'Pretendard';color:#5c7b8b;margin-top:6px">분당구 야탑동 · 50m 풀</div></div>
+        <div style="text-align:right"><div style="font:600 10px 'Pretendard';color:#5c7b8b;letter-spacing:.6px">다음</div><div style="font:600 22px 'Sora';color:#10303f">15:00</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:13px;padding:17px 0;border-bottom:1px solid #d9edf7">
+        <div style="width:7px;height:7px;border-radius:50%;background:#1fa6e8;box-shadow:0 0 0 3px rgba(31,166,232,.16);margin-top:6px;align-self:flex-start"></div>
+        <div style="flex:1"><div style="font:700 18px 'Noto Sans KR';color:#10303f">황새울국민체육센터</div><div style="font:11.5px 'Pretendard';color:#5c7b8b;margin-top:6px">분당구 수내동</div></div>
+        <div style="text-align:right"><div style="font:600 10px 'Pretendard';color:#5c7b8b;letter-spacing:.6px">지금</div><div style="font:700 14px 'Pretendard';color:#1fa6e8">운영중</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:13px;padding:17px 0;border-bottom:1px solid #d9edf7">
+        <div style="width:7px;height:7px;border-radius:50%;background:#9db6c4;margin-top:6px;align-self:flex-start"></div>
+        <div style="flex:1"><div style="font:700 18px 'Noto Sans KR';color:#10303f">성남종합운동장</div><div style="font:11.5px 'Pretendard';color:#5c7b8b;margin-top:6px">수정구 신흥동</div></div>
+        <div style="text-align:right"><div style="font:600 10px 'Pretendard';color:#5c7b8b;letter-spacing:.6px">종료</div><div style="font:600 13px 'Pretendard';color:#5c7b8b">내일 06:00</div></div>
+      </div>
+    </div>
+    <!-- footer with 3b entry -->
+    <div style="padding:24px 24px 34px;border-top:1px solid #d9edf7;margin-top:8px">
+      <div style="font:700 15px 'Noto Sans KR';color:#10303f">Swim, Seongnam</div>
+      <div style="font:11px/1.9 'Pretendard';color:#9db6c4;margin-top:10px">성남도시개발공사 운영 6개 수영장 · 데이터 기준 2025년 7월<br>출처 spo.isdc.co.kr · 스케줄은 변경될 수 있어요.</div>
+      <div onClick="{{openSheet}}" style="margin-top:18px;border:1.5px solid #bfe2f4;border-radius:11px;padding:11px 0;text-align:center;cursor:pointer" style-hover="background:#f3fafd;border-color:#1fa6e8">
+        <div style="display:flex;justify-content:center;align-items:center;gap:8px">
+          <span style="font:14px 'Pretendard';color:#1fa6e8">✎</span>
+          <span style="font:600 13px 'Pretendard';color:#1fa6e8">피드백 보내기</span>
+        </div>
+        <div style="font:11px 'Pretendard';color:#a8bccb;margin-top:3px">잘못된 정보·불편한 점을 알려주세요</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== feedback overlay ===== -->
+  <sc-if value="{{sheetOpen}}" hint-placeholder-val="{{false}}">
+    <div style="position:absolute;inset:0;z-index:30">
+      <div onClick="{{closeSheet}}" style="position:absolute;inset:0;background:rgba(16,48,63,.55);animation:fbFade .22s ease both"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;max-height:94%;overflow-y:auto;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.3);animation:fbUp .3s cubic-bezier(.2,.8,.2,1) both">
+
+        <!-- FORM -->
+        <sc-if value="{{notSubmitted}}" hint-placeholder-val="{{true}}">
+          <div style="padding:18px 22px 26px">
+            <div style="width:38px;height:4px;border-radius:3px;background:#d9edf7;margin:0 auto 16px"></div>
+            <div style="font:800 18px 'Noto Sans KR';color:#10303f;letter-spacing:-.3px">피드백 보내기</div>
+
+            <!-- tab toggle -->
+            <div style="display:flex;gap:6px;background:#eaf4fb;border-radius:10px;padding:4px;margin-top:15px">
+              <div onClick="{{showReport}}" style="{{reportTabStyle}}">⚑ 잘못된 정보</div>
+              <div onClick="{{showImprove}}" style="{{improveTabStyle}}">✎ 불편한 점</div>
+            </div>
+
+            <!-- ===== report tab ===== -->
+            <sc-if value="{{isReport}}" hint-placeholder-val="{{true}}">
+              <div style="font:600 11px 'Pretendard';color:#5c7b8b;letter-spacing:.4px;margin:17px 0 7px">어느 정보인가요?</div>
+              <div style="display:flex;gap:8px;position:relative">
+                <!-- pool select -->
+                <div style="flex:1;position:relative">
+                  <div onClick="{{togglePool}}" style="{{poolFieldStyle}}"><span>{{poolLabel}}</span><span style="color:#9db6c4">⌄</span></div>
+                  <sc-if value="{{poolOpen}}" hint-placeholder-val="{{false}}">
+                    <div style="position:absolute;left:0;right:0;top:46px;z-index:5;background:#fff;border:1px solid #bfe2f4;border-radius:10px;overflow:hidden;box-shadow:0 8px 22px rgba(16,48,63,.16)">
+                      <sc-for list="{{poolOptions}}" as="opt" hint-placeholder-count="6">
+                        <div onClick="{{opt.pick}}" style="{{opt.rowStyle}}">{{opt.name}}</div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+                <!-- item select -->
+                <div style="flex:1;position:relative">
+                  <div onClick="{{toggleItem}}" style="{{itemFieldStyle}}"><span>{{itemLabel}}</span><span style="color:#9db6c4">⌄</span></div>
+                  <sc-if value="{{itemOpen}}" hint-placeholder-val="{{false}}">
+                    <div style="position:absolute;left:0;right:0;top:46px;z-index:5;background:#fff;border:1px solid #bfe2f4;border-radius:10px;overflow:hidden;box-shadow:0 8px 22px rgba(16,48,63,.16)">
+                      <sc-for list="{{itemOptions}}" as="opt" hint-placeholder-count="7">
+                        <div onClick="{{opt.pick}}" style="{{opt.rowStyle}}">{{opt.name}}</div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+              <div style="font:600 11px 'Pretendard';color:#5c7b8b;letter-spacing:.4px;margin:16px 0 7px">올바른 정보</div>
+              <textarea onInput="{{onReportInput}}" placeholder="예) 평일 15:00 자유수영은 없어졌어요. 실제로는 16:00부터예요." style="width:100%;border:1px solid #d9edf7;border-radius:8px;padding:12px;min-height:76px;font-size:13px;line-height:1.6;color:#10303f"></textarea>
+            </sc-if>
+
+            <!-- ===== improve tab ===== -->
+            <sc-if value="{{isImprove}}" hint-placeholder-val="{{false}}">
+              <div style="font:600 11px 'Pretendard';color:#5c7b8b;letter-spacing:.4px;margin:17px 0 9px">어떤 점이 불편했나요?</div>
+              <div style="display:flex;flex-wrap:wrap;gap:7px">
+                <sc-for list="{{catChips}}" as="chip" hint-placeholder-count="5">
+                  <span onClick="{{chip.pick}}" style="{{chip.style}}">{{chip.name}}</span>
+                </sc-for>
+              </div>
+              <div style="font:600 11px 'Pretendard';color:#5c7b8b;letter-spacing:.4px;margin:17px 0 7px">자세한 내용</div>
+              <textarea onInput="{{onImproveInput}}" placeholder="예) 캘린더에서 특정 수영장만 골라 보고 싶어요. 지금은 전체가 다 보여서 찾기 힘들어요." style="width:100%;border:1px solid #d9edf7;border-radius:8px;padding:12px;min-height:96px;font-size:13px;line-height:1.6;color:#10303f"></textarea>
+            </sc-if>
+
+            <!-- screenshot attach (shared) -->
+            <div style="display:flex;gap:10px;margin-top:12px">
+              <sc-if value="{{hasImg}}" hint-placeholder-val="{{false}}">
+                <div style="width:62px;height:62px;border-radius:10px;position:relative;overflow:hidden;border:1px solid #d9edf7;flex:none">
+                  <img src="{{imgData}}" style="width:100%;height:100%;object-fit:cover;display:block">
+                  <div onClick="{{removeImg}}" style="position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(16,48,63,.65);color:#fff;font:12px 'Pretendard';display:flex;align-items:center;justify-content:center;cursor:pointer">×</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{noImg}}" hint-placeholder-val="{{true}}">
+                <label style="width:62px;height:62px;border:1.5px dashed #bfe2f4;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:#f8fcfe;cursor:pointer;flex:none">
+                  <span style="font:18px 'Pretendard';color:#1fa6e8">＋</span><span style="font:9px 'Pretendard';color:#5c7b8b">스샷</span>
+                  <input type="file" accept="image/*" onChange="{{onFile}}" style="display:none">
+                </label>
+                <div style="flex:1;display:flex;align-items:center;font:10.5px/1.5 'Pretendard';color:#9db6c4;padding-left:2px">스크린샷을 첨부하면<br>확인이 더 빨라져요 (선택)</div>
+              </sc-if>
+            </div>
+
+            <div onClick="{{submit}}" style="{{submitStyle}}">보내기</div>
+            <div style="text-align:center;font:10.5px 'Pretendard';color:#9db6c4;margin-top:11px">익명으로 전송돼요 · 개인정보를 수집하지 않아요</div>
+          </div>
+        </sc-if>
+
+        <!-- DONE (5a) -->
+        <sc-if value="{{submitted}}" hint-placeholder-val="{{false}}">
+          <div style="padding:34px 26px 30px;text-align:center">
+            <div style="width:38px;height:4px;border-radius:3px;background:#d9edf7;margin:0 auto 24px"></div>
+            <div style="width:62px;height:62px;border-radius:50%;background:#eaf4fb;display:flex;align-items:center;justify-content:center;margin:0 auto;animation:fbPop .4s ease both">
+              <span style="width:40px;height:40px;border-radius:50%;background:#1fa6e8;display:flex;align-items:center;justify-content:center;font:22px 'Pretendard';color:#fff">✓</span>
+            </div>
+            <div style="font:800 19px 'Noto Sans KR';color:#10303f;letter-spacing:-.3px;margin-top:20px">피드백을 보냈어요</div>
+            <div style="font:13px/1.7 'Pretendard';color:#5c7b8b;margin-top:9px">확인 후 정보에 반영할게요.<br>함께 고쳐주셔서 고마워요.</div>
+            <div style="display:inline-flex;align-items:center;gap:8px;margin-top:20px;background:#f1f9fd;border:1px solid #d9edf7;border-radius:20px;padding:8px 14px">
+              <span style="font:13px 'Pretendard';color:{{summaryColor}}">{{summaryIcon}}</span>
+              <span style="font:600 12px 'Pretendard';color:#10303f">{{summaryText}}</span>
+            </div>
+            <div onClick="{{closeSheet}}" style="margin-top:26px;background:#eaf4fb;border:1px solid #d9edf7;border-radius:11px;padding:15px 0;font:700 14px 'Pretendard';color:#1fa6e8;cursor:pointer">닫기</div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const POOLS = ['탄천종합운동장','성남종합운동장','황새울국민체육센터','판교스포츠센터','평생스포츠센터','금곡공원국민체육센터'];
+const ITEMS = ['자유수영 시간표','요금','휴관일 · 휴관 주','운영 상태','위치 · 주소','기타'];
+const CATS  = ['사용법이 헷갈려요','원하는 정보가 없어요','보기 불편해요','기능 제안','기타'];
+
+const TAB_ON  = "flex:1;text-align:center;padding:9px 0;background:#fff;border-radius:7px;box-shadow:0 1px 3px rgba(16,48,63,.1);font:600 12.5px 'Pretendard';color:#10303f;cursor:pointer";
+const TAB_OFF = "flex:1;text-align:center;padding:9px 0;font:600 12.5px 'Pretendard';color:#5c7b8b;cursor:pointer";
+const FIELD_IDLE = "border:1px solid #d9edf7;background:#f1f9fd;border-radius:8px;padding:11px 12px;font:600 13px 'Pretendard';color:#10303f;display:flex;justify-content:space-between;align-items:center;cursor:pointer";
+const FIELD_ON   = "border:1.5px solid #1fa6e8;background:#fff;border-radius:8px;padding:11px 12px;font:600 13px 'Pretendard';color:#10303f;display:flex;justify-content:space-between;align-items:center;cursor:pointer";
+const FIELD_EMPTY= "border:1px solid #d9edf7;background:#f1f9fd;border-radius:8px;padding:11px 12px;font:600 13px 'Pretendard';color:#9db6c4;display:flex;justify-content:space-between;align-items:center;cursor:pointer";
+const ROW_IDLE = "padding:11px 14px;font:500 13px 'Pretendard';color:#10303f;border-top:1px solid #eaf4fb;cursor:pointer";
+const ROW_SEL  = "padding:11px 14px;font:600 13px 'Pretendard';color:#1fa6e8;background:#eaf4fb;cursor:pointer;display:flex;justify-content:space-between;align-items:center";
+const CHIP_IDLE = "border:1px solid #d9edf7;border-radius:20px;padding:8px 13px;font:500 12px 'Pretendard';color:#5c7b8b;cursor:pointer";
+const CHIP_ON   = "border:1.5px solid #1fa6e8;background:#eaf4fb;border-radius:20px;padding:8px 13px;font:600 12px 'Pretendard';color:#10303f;cursor:pointer";
+
+class Component extends DCLogic {
+  state = {
+    sheetOpen:false, tab:'report', submitted:false,
+    poolOpen:false, itemOpen:false,
+    pool:'', item:'', cat:'',
+    reportText:'', improveText:'', img:null,
+    summary:{icon:'⚑', color:'#f47c72', text:''},
+  };
+
+  openSheet   = () => this.setState({ sheetOpen:true, submitted:false, tab:'report',
+    pool:'', item:'', cat:'', reportText:'', improveText:'', img:null, poolOpen:false, itemOpen:false });
+  closeSheet  = () => this.setState({ sheetOpen:false, poolOpen:false, itemOpen:false });
+  showReport  = () => this.setState({ tab:'report', poolOpen:false, itemOpen:false });
+  showImprove = () => this.setState({ tab:'improve', poolOpen:false, itemOpen:false });
+  togglePool  = () => this.setState(s => ({ poolOpen:!s.poolOpen, itemOpen:false }));
+  toggleItem  = () => this.setState(s => ({ itemOpen:!s.itemOpen, poolOpen:false }));
+  onReportInput  = (e) => this.setState({ reportText: e.target.value });
+  onImproveInput = (e) => this.setState({ improveText: e.target.value });
+  removeImg = () => this.setState({ img:null });
+
+  onFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => this.setState({ img: r.result });
+    r.readAsDataURL(f);
+  };
+
+  canSubmit() {
+    return this.state.tab === 'report'
+      ? !!this.state.pool && this.state.reportText.trim().length > 0
+      : !!this.state.cat && this.state.improveText.trim().length > 0;
+  }
+
+  submit = () => {
+    if (!this.canSubmit()) return;
+    const s = this.state;
+    const summary = s.tab === 'report'
+      ? { icon:'⚑', color:'#f47c72', text: s.pool + (s.item ? ' · ' + s.item : '') }
+      : { icon:'✎', color:'#1fa6e8', text: s.cat };
+    // (실제 연동 시 여기서 익명 페이로드를 백엔드로 전송)
+    this.setState({ submitted:true, summary,
+      pool:'', item:'', cat:'', reportText:'', improveText:'', img:null,
+      poolOpen:false, itemOpen:false });
+  };
+
+  renderVals() {
+    const s = this.state;
+    const poolOptions = POOLS.map(p => ({
+      name: p, rowStyle: p === s.pool ? ROW_SEL : ROW_IDLE,
+      pick: () => this.setState({ pool:p, poolOpen:false }),
+    }));
+    const itemOptions = ITEMS.map(it => ({
+      name: it, rowStyle: it === s.item ? ROW_SEL : ROW_IDLE,
+      pick: () => this.setState({ item:it, itemOpen:false }),
+    }));
+    const catChips = CATS.map(c => ({
+      name: c, style: c === s.cat ? CHIP_ON : CHIP_IDLE,
+      pick: () => this.setState({ cat:c }),
+    }));
+
+    const SUBMIT_ON  = "margin-top:16px;background:#1fa6e8;border-radius:11px;padding:15px 0;text-align:center;font:700 14px 'Pretendard';color:#fff;cursor:pointer";
+    const SUBMIT_OFF = "margin-top:16px;background:#bfe2f4;border-radius:11px;padding:15px 0;text-align:center;font:700 14px 'Pretendard';color:#fff;opacity:.7;cursor:default";
+
+    return {
+      openSheet:this.openSheet, closeSheet:this.closeSheet,
+      showReport:this.showReport, showImprove:this.showImprove,
+      togglePool:this.togglePool, toggleItem:this.toggleItem,
+      onReportInput:this.onReportInput, onImproveInput:this.onImproveInput,
+      onFile:this.onFile, removeImg:this.removeImg, submit:this.submit,
+
+      sheetOpen:s.sheetOpen, submitted:s.submitted, notSubmitted:!s.submitted,
+      isReport:s.tab==='report', isImprove:s.tab==='improve',
+      poolOpen:s.poolOpen, itemOpen:s.itemOpen,
+      hasImg:!!s.img, noImg:!s.img, imgData:s.img,
+
+      reportTabStyle: s.tab==='report' ? TAB_ON : TAB_OFF,
+      improveTabStyle: s.tab==='improve' ? TAB_ON : TAB_OFF,
+      poolLabel: s.pool || '수영장 선택',
+      poolFieldStyle: s.poolOpen ? FIELD_ON : (s.pool ? FIELD_IDLE : FIELD_EMPTY),
+      itemLabel: s.item || '항목 (선택)',
+      itemFieldStyle: s.itemOpen ? FIELD_ON : (s.item ? FIELD_IDLE : FIELD_EMPTY),
+      poolOptions, itemOptions, catChips,
+
+      submitStyle: this.canSubmit() ? SUBMIT_ON : SUBMIT_OFF,
+      summaryIcon:s.summary.icon, summaryColor:s.summary.color, summaryText:s.summary.text,
+    };
+  }
+}
+</script>
+</body>
+</html>
