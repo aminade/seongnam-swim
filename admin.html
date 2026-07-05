@@ -700,8 +700,7 @@ async function loadData() {
     if (d.hourly)         initOrUpdateHourly(d.hourly);
     if (d.devices)        initOrUpdateDevice(d.devices);
     if (d.dayOfWeek)      initOrUpdateDow(d.dayOfWeek);
-    if (d.visitFreq)      renderVisitFreq(d.visitFreq);
-    else                  renderVisitFreq({ once:41, few:37, mid:16, loyal:6 }); // 샘플
+    renderVisitFreq(d.visitFreq || { once:0, few:0, mid:0, loyal:0 });
 
     // 유입 경로
     const srcColors = [C.teal, C.green, C.purple, C.amber, C.sun];
