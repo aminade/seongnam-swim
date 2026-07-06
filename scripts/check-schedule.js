@@ -47,6 +47,25 @@ const KNOWN_YOUTH = {
 function mins(t) { const [h,m] = t.split(':').map(Number); return h*60+m; }
 function pad2(t) { const [h,m] = t.split(':'); return `${h.padStart(2,'0')}:${m}`; }
 
+// 일시적 네트워크 실패로 오탐 이슈가 생기지 않도록 재시도 (기본 3회)
+async function fetchText(url, tries = 3) {
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; schedule-checker/1.0)' },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.text();
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 // HTML에서 자유수영 전용 섹션을 추출
 // 전략: "자유수영"이 포함된 <tr> 또는 <td>/<th> 행부터 다음 프로그램 행 전까지
 function extractFreeSwimSection(html) {
@@ -118,12 +137,7 @@ function parseClosedWeeks(html) {
 
 async function crawlPool(pool) {
   try {
-    const res = await fetch(pool.url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; schedule-checker/1.0)' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const html = await res.text();
+    const html = await fetchText(pool.url);
     const section = extractFreeSwimSection(html);
 
     return {
@@ -237,12 +251,7 @@ function parseYouthClosedWeeks(html) {
 
 async function crawlYouthPool(pool) {
   try {
-    const res = await fetch(pool.url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; schedule-checker/1.0)' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const html = await res.text();
+    const html = await fetchText(pool.url);
     const section = extractYouthSwimSection(html);
     return {
       slots: parseYouthSlots(section),
