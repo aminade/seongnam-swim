@@ -3,34 +3,30 @@
 // Google Apps Script에 이 코드를 붙여넣고 웹 앱으로 배포하세요.
 //
 // index.html의 피드백 폼이 이 웹앱으로 익명 페이로드를 POST하면:
-//   1. 지정한 스프레드시트에 한 줄씩 자동 누적
+//   1. "내 드라이브/Projects/Swim Seongnam" 폴더의 'Swim 성남 피드백' 시트에 한 줄씩 누적
+//      (폴더/시트가 없으면 자동 생성, 있으면 재사용 — 제출마다 새로 만들지 않음)
 //   2. NOTIFY_EMAIL로 제출 알림 메일 발송
-//   3. 스크린샷이 있으면 Google Drive에 업로드하고 링크만 저장 (용량 절약)
+//   3. 스크린샷이 있으면 같은 폴더에 업로드하고 링크만 저장 (용량 절약)
 //
 // ── 배포 방법 ──────────────────────────────────────────────────
-//  1. script.google.com → 새 프로젝트
-//  2. 이 코드 전체 붙여넣기
-//  3. 아래 CONFIG 3개 값 설정:
-//       - SHEET_ID    : 피드백을 쌓을 구글 시트 ID (시트 URL의 /d/와 /edit 사이 문자열)
-//                       비워두면 스크립트에 연결된 시트를 자동 사용/생성
-//       - NOTIFY_EMAIL: 알림 받을 이메일 (예: aminade@gmail.com)
-//       - DRIVE_FOLDER_ID: 스크린샷 저장 폴더 ID (선택, 비우면 내 드라이브 루트)
-//  4. 상단 메뉴 → 배포 → 새 배포
-//       - 유형: 웹 앱
-//       - 다음 사용자로 실행: 나(본인 계정)
-//       - 액세스 권한: 모든 사용자
-//  5. 처음 배포 시 권한 승인(스프레드시트·메일·드라이브 접근) 필요
-//  6. 배포 후 나오는 /exec URL을 index.html의 FEEDBACK_ENDPOINT에 붙여넣기
+//  1. script.google.com → 기존 피드백 프로젝트 열기
+//  2. 코드 전체를 이 내용으로 교체(전체 선택 후 붙여넣기) → 저장(Ctrl+S)
+//  3. 배포 → 배포 관리 → 편집(연필) → 버전: 새 버전 → 배포  (URL 유지됨)
+//  4. 처음이면 권한 승인(스프레드시트·메일·드라이브) 필요
 //
-//  ⚠ 코드 수정 후에는 "배포 관리 → 편집(연필) → 새 버전"으로 재배포해야 반영됩니다.
+//  ※ 특정 시트를 강제로 쓰고 싶으면 CONFIG.SHEET_ID에 시트 ID를 넣으세요.
+//    (그 경우 폴더 탐색은 건너뛰고 그 시트만 사용 — 폴더로 옮겨도 ID는 안 바뀌므로 안전)
 // ═══════════════════════════════════════════════════════════════
 
 const CONFIG = {
-  SHEET_ID:        '',                 // 비우면 자동 생성/연결
-  SHEET_NAME:      '피드백',
-  NOTIFY_EMAIL:    'aminade@gmail.com',
-  DRIVE_FOLDER_ID: '',                 // 스크린샷 저장 폴더 (선택)
+  SHEET_ID:     '',                 // 비우면 아래 폴더에서 자동 탐색/생성
+  SHEET_NAME:   '피드백',           // 스프레드시트 내부 탭 이름
+  NOTIFY_EMAIL: 'aminade@gmail.com',
 };
+
+// 내 드라이브 아래 폴더 경로 + 스프레드시트 파일명
+const FOLDER_PATH = ['Projects', 'Swim Seongnam'];
+const SPREADSHEET_NAME = 'Swim 성남 피드백';
 
 const TYPE_LABEL = { report: '잘못된 정보', improve: '불편한 점' };
 
@@ -76,10 +72,21 @@ function doGet() {
 
 // ── 헬퍼 ──────────────────────────────────────────────────────
 
+// 지정 폴더에서 시트를 찾아 재사용(없으면 그 폴더에 1회 생성)
 function getSheet_() {
-  const ss = CONFIG.SHEET_ID
-    ? SpreadsheetApp.openById(CONFIG.SHEET_ID)
-    : SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.create('Swim Seongnam 피드백');
+  let ss;
+  if (CONFIG.SHEET_ID) {
+    ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  } else {
+    const folder = getOrCreateFolder_(FOLDER_PATH);
+    const files = folder.getFilesByName(SPREADSHEET_NAME);
+    if (files.hasNext()) {
+      ss = SpreadsheetApp.open(files.next());
+    } else {
+      ss = SpreadsheetApp.create(SPREADSHEET_NAME);            // 루트에 생성된 뒤
+      DriveApp.getFileById(ss.getId()).moveTo(folder);         // 대상 폴더로 이동
+    }
+  }
   let sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(CONFIG.SHEET_NAME);
@@ -89,6 +96,16 @@ function getSheet_() {
   return sheet;
 }
 
+// 내 드라이브 기준으로 경로를 따라가며 폴더를 찾고, 없는 단계는 생성
+function getOrCreateFolder_(pathArr) {
+  let parent = DriveApp.getRootFolder();
+  for (const name of pathArr) {
+    const it = parent.getFoldersByName(name);
+    parent = it.hasNext() ? it.next() : parent.createFolder(name);
+  }
+  return parent;
+}
+
 function saveScreenshot_(dataUrl) {
   const m = dataUrl.match(/^data:([^;]+);base64,(.*)$/);
   if (!m) return '';
@@ -96,9 +113,7 @@ function saveScreenshot_(dataUrl) {
   const ext = (contentType.split('/')[1] || 'png').replace('jpeg', 'jpg');
   const bytes = Utilities.base64Decode(m[2]);
   const blob = Utilities.newBlob(bytes, contentType, 'feedback-' + Date.now() + '.' + ext);
-  const folder = CONFIG.DRIVE_FOLDER_ID
-    ? DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID)
-    : DriveApp.getRootFolder();
+  const folder = getOrCreateFolder_(FOLDER_PATH);   // 시트와 같은 폴더에 저장
   const file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return file.getUrl();
