@@ -88,9 +88,8 @@
 .rname { font-family: var(--serif); font-weight: 700; font-size: 18px; color: var(--text); letter-spacing: -.3px; line-height: 1.3; }
 .rmeta { font-size: 11.5px; color: var(--muted); margin-top: 6px; letter-spacing: .2px; }
 .rtime { text-align: right; flex-shrink: 0; }
-.rtime .lb { font-size: 10px; font-weight: 600; letter-spacing: .6px; color: var(--muted); }
-.rtime .vl { font-family: var(--num); font-size: 22px; font-weight: 600; color: var(--text); line-height: 1.05; letter-spacing: .3px; }
-.rtime .vl.run { font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--teal); }
+.rtime .lb { font-size: 10px; font-weight: 600; letter-spacing: .6px; color: var(--muted); margin-bottom: 5px; }
+.rtime .vl { font-family: var(--num); font-size: 22px; font-weight: 600; color: var(--text); line-height: 1.05; letter-spacing: .3px; white-space: nowrap; }
 .rtime .st { font-size: 12px; font-weight: 600; color: var(--muted); }
 .rtime .st.closed { color: var(--sun); }
 .chev { color: var(--faint); font-size: 19px; flex-shrink: 0; font-family: var(--num); transition: transform .25s; line-height: 1; }
@@ -502,7 +501,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       const nextSlot = slots.find(s=> mins(startStr(s)) > nowMin);
       if(nextSlot) return { kind:'open', next: startStr(nextSlot) };
       const running = slots.find(s=>{ const [a,b]=s.time.split('~'); return nowMin>=mins(a) && nowMin<mins(b); });
-      if(running) return { kind:'open', running:true };
+      if(running) return { kind:'open', running:true, range: startStr(running) };
       return { kind:'ended', last: fmtTime(slots[slots.length-1]) };
     }
 
@@ -564,7 +563,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
         let rightHtml='';
         if(isOpen){
           rightHtml = st.running
-            ? `<div class="lb">현재</div><div class="vl run">운영 중</div>`
+            ? `<div class="lb">현재 운영중</div><div class="vl run">${st.range}</div>`
             : `<div class="lb">다음 타임</div><div class="vl">${st.next}</div>`;
         } else if(isEnded){ rightHtml=`<div class="st">오늘 종료</div>`; }
         else { rightHtml=`<div class="st closed">휴관</div>`; }
