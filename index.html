@@ -498,10 +498,10 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
         return { kind:'open', next: startStr(slots[0]) };
       }
       const now = new Date(); const nowMin = now.getHours()*60+now.getMinutes();
-      const nextSlot = slots.find(s=> mins(startStr(s)) > nowMin);
-      if(nextSlot) return { kind:'open', next: startStr(nextSlot) };
       const running = slots.find(s=>{ const [a,b]=s.time.split('~'); return nowMin>=mins(a) && nowMin<mins(b); });
       if(running) return { kind:'open', running:true, range: startStr(running) };
+      const nextSlot = slots.find(s=> mins(startStr(s)) > nowMin);
+      if(nextSlot) return { kind:'open', next: startStr(nextSlot) };
       return { kind:'ended', last: fmtTime(slots[slots.length-1]) };
     }
 
