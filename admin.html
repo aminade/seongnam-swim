@@ -380,7 +380,7 @@ body {
     </div>
     <div class="chart-card">
       <div class="chart-card-head">
-        <div class="chart-card-title">수영장별 사이트 클릭 순위</div>
+        <div class="chart-card-title">수영장별 상세정보 보기(펼치기)</div>
         <div class="chart-card-sub">이번달 · 상세 조회 수</div>
       </div>
       <div class="rank-list" id="poolList"></div>
@@ -711,7 +711,12 @@ async function loadData() {
     renderRankList('sourceList', sourceItems, srcColors);
 
     // 수영장 클릭
-    const poolItems = (d.pools || []).map(p => ({ label: p.name, value: p.clicks }));
+    const POOL_NAMES_KO = {
+      tanchen: '탄천종합운동장', seongnam: '성남종합운동장', hwangse: '황새울국민체육센터',
+      geumgok: '금곡스포츠센터', pangyo: '판교스포츠센터', pyengsaeng: '평생학습스포츠센터',
+      yc_yatap: '야탑유스센터', yc_jungwon: '중원유스센터', yc_pangyo: '판교유스센터',
+    };
+    const poolItems = (d.pools || []).map(p => ({ label: POOL_NAMES_KO[p.id] || p.name, value: p.clicks }));
     renderRankList('poolList', poolItems, srcColors);
 
     // 탭
