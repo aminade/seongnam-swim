@@ -12,7 +12,37 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Swim, Seongnam</title>
+<title>성남 수영장 정보 한눈에 보기</title>
+<meta name="description" content="성남·분당 공공수영장 9곳(탄천·성남·황새울·판교 등)의 자유수영 시간표·요금·휴관일·운영상태를 한눈에. 매월 자동 업데이트.">
+<link rel="canonical" href="https://swim.andlife.app/">
+<meta name="theme-color" content="#1fa6e8">
+<!-- Open Graph (카카오톡·페이스북 공유) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Swim">
+<meta property="og:title" content="성남 수영장 정보 한눈에 보기">
+<meta property="og:description" content="성남 지역의 수영장 위치, 시설, 자유수영 시간표를 확인해 보세요">
+<meta property="og:url" content="https://swim.andlife.app/">
+<meta property="og:image" content="https://swim.andlife.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ko_KR">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="성남 수영장 정보 한눈에 보기">
+<meta name="twitter:description" content="성남 지역의 수영장 위치, 시설, 자유수영 시간표를 확인해 보세요">
+<meta name="twitter:image" content="https://swim.andlife.app/og-image.jpg">
+<!-- 구조화 데이터 -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Swim",
+  "alternateName": "성남 수영장 정보",
+  "url": "https://swim.andlife.app/",
+  "inLanguage": "ko-KR",
+  "description": "성남 지역의 수영장 위치, 시설, 자유수영 시간표를 확인해 보세요"
+}
+</script>
 <!-- Google Analytics 4 -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-S45MTX2JXK"></script>
 <script>
@@ -128,6 +158,8 @@
 .month-btn:not(:disabled):hover { background: var(--teal); border-color: var(--teal); color: #fff; }
 .cal-dow-row { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--line); margin-bottom: 6px; }
 .cal-dow { text-align: center; font-size: 10px; font-weight: 600; letter-spacing: .5px; color: var(--faint); padding: 0 0 10px; }
+.cal-dow.sat { color: var(--teal); }
+.cal-dow.sun { color: var(--sun); }
 .cal-body { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .cal-cell2 { height: 46px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .cal-cell2.cal-empty { cursor: default; }
@@ -289,7 +321,7 @@
         <button class="month-btn" id="nextMonthBtn">→</button>
       </div>
       <div class="cal-dow-row">
-        <div class="cal-dow">월</div><div class="cal-dow">화</div><div class="cal-dow">수</div><div class="cal-dow">목</div><div class="cal-dow">금</div><div class="cal-dow">토</div><div class="cal-dow">일</div>
+        <div class="cal-dow">월</div><div class="cal-dow">화</div><div class="cal-dow">수</div><div class="cal-dow">목</div><div class="cal-dow">금</div><div class="cal-dow sat">토</div><div class="cal-dow sun">일</div>
       </div>
       <div class="cal-body" id="calBody"></div>
       <div class="cal-day-head"><span class="d" id="calDayLabel"></span><span class="sub" id="calDaySub"></span></div>
@@ -659,7 +691,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
     function renderCalTimeline(date){
       document.getElementById('calDayLabel').textContent=`${date.getMonth()+1}월 ${date.getDate()}일 (${DAY_NAMES[date.getDay()]})`;
       const openCount=POOLS.filter(p=>!isClosedDay(p,date)).length;
-      document.getElementById('calDaySub').textContent = openCount===POOLS.length ? '전 수영장 운영' : `${openCount}곳 운영 · ${POOLS.length-openCount}곳 휴관`;
+      document.getElementById('calDaySub').textContent = openCount===POOLS.length ? '' : `${openCount}곳 운영 · ${POOLS.length-openCount}곳 휴관`;
       const START=360, PPM=40/60, PAD=12;
       const xOf=m=>PAD+(m-START)*PPM;
       const order=['tanchen','seongnam','geumgok','hwangse','pangyo','pyengsaeng','yc_yatap','yc_jungwon','yc_pangyo'];
