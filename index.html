@@ -6,13 +6,20 @@
 <script>
 (function(){
   var canonical = 'swim.andlife.app';
-  if (location.hostname !== canonical && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+  var host = location.hostname;
+  // 실제 공개 도메인(http/https + 점 포함 + 사설/로컬 호스트 아님)일 때만 리다이렉트.
+  // 로컬/미리보기 환경(localhost, 127.x, file://, 프리뷰 프록시 등)에서는 발동하지 않음.
+  var isHttp = location.protocol === 'http:' || location.protocol === 'https:';
+  var isLocal = !host || host === 'localhost' || host === '127.0.0.1' || host === '[::1]' ||
+    host === '0.0.0.0' || /\.local$/.test(host) || host.indexOf('.') === -1 ||
+    /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(host);
+  if (isHttp && !isLocal && host !== canonical) {
     location.replace('https://' + canonical + '/' + location.search + location.hash);
   }
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>성남 수영장 정보 한눈에 보기</title>
+<title>오늘의 자유수영</title>
 <meta name="description" content="성남·분당 공공수영장 9곳(탄천·성남·황새울·판교 등)의 자유수영 시간표·요금·휴관일·운영상태를 한눈에. 매월 자동 업데이트.">
 <link rel="canonical" href="https://swim.andlife.app/">
 <meta name="theme-color" content="#1fa6e8">
@@ -20,7 +27,7 @@
 <!-- Open Graph (카카오톡·페이스북 공유) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Swim">
-<meta property="og:title" content="성남 수영장 정보 한눈에 보기">
+<meta property="og:title" content="오늘의 자유수영">
 <meta property="og:description" content="성남 지역의 수영장 위치, 시설, 자유수영 시간표를 확인해 보세요">
 <meta property="og:url" content="https://swim.andlife.app/">
 <meta property="og:image" content="https://swim.andlife.app/og-image.jpg">
@@ -29,7 +36,7 @@
 <meta property="og:locale" content="ko_KR">
 <!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="성남 수영장 정보 한눈에 보기">
+<meta name="twitter:title" content="오늘의 자유수영">
 <meta name="twitter:description" content="성남 지역의 수영장 위치, 시설, 자유수영 시간표를 확인해 보세요">
 <meta name="twitter:image" content="https://swim.andlife.app/og-image.jpg">
 <!-- 구조화 데이터 -->
