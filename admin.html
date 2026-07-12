@@ -445,7 +445,7 @@ let chartVisitors = null, chartHourly = null, chartDevice = null, chartDow = nul
 const C = {
   teal:'#1fa6e8', tealBg:'rgba(31,166,232,.10)',
   green:'#2bb888', greenBg:'rgba(43,184,136,.10)',
-  line:'#d9edf7', muted:'#9db6c4',
+  line:'#d9edf7', muted:'#9db6c4', slate:'#7d8f9c',
   purple:'#7c6fe0', amber:'#f5a623', sun:'#f47c72',
 };
 Chart.defaults.font.family = "'Pretendard', -apple-system, sans-serif";
@@ -498,17 +498,22 @@ function renderRankList(containerId, items, colors) {
 
 // ── 차트 초기화 / 업데이트 ──
 function initOrUpdateVisitors(trend) {
+  const DOW = ['일','월','화','수','목','금','토'];
   const labels = trend.map(t => {
     const d = t.date;
-    return `${parseInt(d.slice(4,6))}/${parseInt(d.slice(6,8))}`;
+    const mo = parseInt(d.slice(4,6)), da = parseInt(d.slice(6,8));
+    const dow = DOW[new Date(parseInt(d.slice(0,4)), mo-1, da).getDay()];
+    return `${mo}/${da} (${dow})`;
   });
   const newData = trend.map(t => t.newUsers);
   const retData = trend.map(t => t.users - t.newUsers);
+  const totData = trend.map(t => t.users);
 
   if (chartVisitors) {
     chartVisitors.data.labels = labels;
-    chartVisitors.data.datasets[0].data = newData;
-    chartVisitors.data.datasets[1].data = retData;
+    chartVisitors.data.datasets[0].data = totData;
+    chartVisitors.data.datasets[1].data = newData;
+    chartVisitors.data.datasets[2].data = retData;
     chartVisitors.update();
     return;
   }
@@ -517,6 +522,7 @@ function initOrUpdateVisitors(trend) {
     data: {
       labels,
       datasets: [
+        { label:'전체', data:totData, borderColor:C.slate, backgroundColor:'transparent', fill:false, tension:.45, pointRadius:0, borderWidth:2 },
         { label:'신규', data:newData, borderColor:C.teal, backgroundColor:C.tealBg, fill:true, tension:.45, pointRadius:0, borderWidth:2 },
         { label:'재방문', data:retData, borderColor:C.green, backgroundColor:C.greenBg, fill:true, tension:.45, pointRadius:0, borderWidth:2 },
       ]
