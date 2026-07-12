@@ -19,7 +19,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 const CONFIG = {
-  SHEET_ID:     '',                 // 비우면 아래 폴더에서 자동 탐색/생성
+  SHEET_ID:     '1gA0p2QIgnpy1F3_nngC5GZ5b0X3iFMDZ9iRSDOy0Lxc',
   SHEET_NAME:   '피드백',           // 스프레드시트 내부 탭 이름
   NOTIFY_EMAIL: 'aminade@gmail.com',
 };
@@ -68,6 +68,16 @@ function doPost(e) {
 // 브라우저에서 URL을 직접 열어 배포 상태를 확인할 때 사용
 function doGet() {
   return json_({ ok: true, message: 'Swim Seongnam feedback endpoint is live.' });
+}
+
+// Apps Script 에디터에서 직접 실행해서 진단
+function testSheetAccess() {
+  try {
+    const ss = SpreadsheetApp.openById('1gA0p2QIgnpy1F3_nngC5GZ5b0X3iFMDZ9iRSDOy0Lxc');
+    Logger.log('OK: ' + ss.getName());
+  } catch (e) {
+    Logger.log('ERROR: ' + e.message);
+  }
 }
 
 // ── 헬퍼 ──────────────────────────────────────────────────────
