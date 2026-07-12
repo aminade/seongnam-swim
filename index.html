@@ -2,6 +2,15 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<!-- 정식 도메인(swim.andlife.app)이 아닌 곳(openswim.vercel.app, github.io 등)으로 접속 시 리다이렉트 -->
+<script>
+(function(){
+  var canonical = 'swim.andlife.app';
+  if (location.hostname !== canonical && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    location.replace('https://' + canonical + '/' + location.search + location.hash);
+  }
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Swim, Seongnam</title>
 <!-- Google Analytics 4 -->
