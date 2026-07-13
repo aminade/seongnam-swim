@@ -27,8 +27,20 @@ const POOL_NAMES = {
   pyengsaeng:'평생학습스포츠센터',
 };
 
-function doGet() {
+function doGet(e) {
   try {
+    // ── 접근 토큰 검증 ──
+    // 실제 토큰 값은 코드가 아니라 Apps Script의 스크립트 속성에 저장한다.
+    // (프로젝트 설정 → 스크립트 속성 → ACCESS_TOKEN 추가)
+    // 그래야 이 .gs 파일이 공개 저장소에 있어도 토큰이 노출되지 않는다.
+    const expected = PropertiesService.getScriptProperties().getProperty('ACCESS_TOKEN');
+    const given = e && e.parameter && e.parameter.token;
+    if (!expected || given !== expected) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, error: 'unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     const data = buildDashboardData();
     return ContentService
       .createTextOutput(JSON.stringify({ ok: true, data }))
