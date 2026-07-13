@@ -6,4 +6,4 @@
 
 # 운영자 대시보드 — 공개 배포하지 않음 (로컬 전용)
 admin.html
-admin.command
+*.command
