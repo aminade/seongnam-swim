@@ -52,6 +52,31 @@ function doGet(e) {
   }
 }
 
+// analytics.readonly 스코프 확보용 더미 — 절대 실행되지 않는다(지우지 말 것).
+// Apps Script는 코드에 AnalyticsData 참조가 있어야 GA4 읽기 스코프를 토큰에 넣어준다.
+// 실제 호출은 아래 gaRunReport(UrlFetch)로 하지만, 이 참조가 스코프를 확보해 준다.
+function _keepAnalyticsScope() {
+  if (false) AnalyticsData.Properties.runReport('properties/0', {});
+}
+
+// ── GA4 Data API 직접 호출 ──
+// Apps Script의 AnalyticsData 고급 서비스가 로봇 404를 반환하는 문제가 있어,
+// UrlFetchApp로 REST 엔드포인트를 직접 호출한다. (응답 구조는 동일)
+function gaRunReport(prop, request) {
+  const url = 'https://analyticsdata.googleapis.com/v1beta/' + prop + ':runReport';
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: JSON.stringify(request),
+    muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() !== 200) {
+    throw new Error('GA4 API ' + res.getResponseCode() + ': ' + res.getContentText());
+  }
+  return JSON.parse(res.getContentText());
+}
+
 function buildDashboardData() {
   const prop = `properties/${PROPERTY_ID}`;
   const now = new Date();
@@ -65,7 +90,7 @@ function buildDashboardData() {
   );
 
   // ── 오늘 핵심 지표 ──
-  const todayR = AnalyticsData.Properties.runReport(prop, {
+  const todayR = gaRunReport(prop, {
     dateRanges: [
       { startDate: 'today', endDate: 'today' },
       { startDate: yesterday, endDate: yesterday },
@@ -81,19 +106,19 @@ function buildDashboardData() {
   });
 
   // ── 이번달 ──
-  const monthR = AnalyticsData.Properties.runReport(prop, {
+  const monthR = gaRunReport(prop, {
     dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
     metrics: [{ name: 'activeUsers' }],
   });
 
   // ── 전체 누적 ──
-  const totalR = AnalyticsData.Properties.runReport(prop, {
+  const totalR = gaRunReport(prop, {
     dateRanges: [{ startDate: '2024-01-01', endDate: 'today' }],
     metrics: [{ name: 'activeUsers' }],
   });
 
   // ── 30일 추이 ──
-  const trendR = AnalyticsData.Properties.runReport(prop, {
+  const trendR = gaRunReport(prop, {
     dateRanges: [{ startDate: '29daysAgo', endDate: 'today' }],
     dimensions: [{ name: 'date' }],
     metrics: [{ name: 'activeUsers' }, { name: 'newUsers' }],
@@ -101,7 +126,7 @@ function buildDashboardData() {
   });
 
   // ── 시간대별 (오늘) ──
-  const hourlyR = AnalyticsData.Properties.runReport(prop, {
+  const hourlyR = gaRunReport(prop, {
     dateRanges: [{ startDate: 'today', endDate: 'today' }],
     dimensions: [{ name: 'hour' }],
     metrics: [{ name: 'activeUsers' }],
@@ -109,14 +134,14 @@ function buildDashboardData() {
   });
 
   // ── 기기 유형 (이번달) ──
-  const deviceR = AnalyticsData.Properties.runReport(prop, {
+  const deviceR = gaRunReport(prop, {
     dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
     dimensions: [{ name: 'deviceCategory' }],
     metrics: [{ name: 'activeUsers' }],
   });
 
   // ── 유입 경로 (이번달) ──
-  const sourceR = AnalyticsData.Properties.runReport(prop, {
+  const sourceR = gaRunReport(prop, {
     dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
     dimensions: [{ name: 'sessionSource' }],
     metrics: [{ name: 'activeUsers' }],
@@ -125,7 +150,7 @@ function buildDashboardData() {
   });
 
   // ── 지역 (이번달) ──
-  const cityR = AnalyticsData.Properties.runReport(prop, {
+  const cityR = gaRunReport(prop, {
     dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
     dimensions: [{ name: 'city' }],
     metrics: [{ name: 'activeUsers' }],
@@ -134,7 +159,7 @@ function buildDashboardData() {
   });
 
   // ── 탭 클릭 (이번달) ──
-  const tabR = AnalyticsData.Properties.runReport(prop, {
+  const tabR = gaRunReport(prop, {
     dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'eventCount' }],
@@ -144,7 +169,7 @@ function buildDashboardData() {
   });
 
   // ── 수영장 클릭 (이번달) ──
-  const poolR = AnalyticsData.Properties.runReport(prop, {
+  const poolR = gaRunReport(prop, {
     dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'eventCount' }],
@@ -155,7 +180,7 @@ function buildDashboardData() {
   });
 
   // ── 신규 vs 재방문 (이번달) ──
-  const nvrR = AnalyticsData.Properties.runReport(prop, {
+  const nvrR = gaRunReport(prop, {
     dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
     dimensions: [{ name: 'newVsReturning' }],
     metrics: [{ name: 'activeUsers' }],
