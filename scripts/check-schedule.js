@@ -37,6 +37,19 @@ const YOUTH_META = [
   { id:'yc_pangyo',  name:'판교유스센터', url:'https://www.snyouth.or.kr/fmcs/133' },
 ];
 
+// 수정유스센터: 신축 건물 시범운영 중(2026-07-25~별도 공지시까지). 정식 운영시간안내
+// 페이지(fmcs/32)에는 아직 수영장 시간표가 반영되지 않아, 위 3곳과 같은 표 파싱이 불가능함.
+// 대신 공지사항 게시판(fmcs/22)의 고정 공지를 감시 → 공지가 바뀌면(일정 변경/종료 등) 수동 검토.
+// 정식 페이지에 시간표가 등장하면(=정식 운영 전환) 별도로 알림 → 그때 YOUTH_META로 승격.
+const SUJEONG_NOTICE = {
+  id: 'yc_sujeong',
+  name: '수정유스센터',
+  boardUrl: 'https://www.snyouth.or.kr/fmcs/22',
+  officialUrl: 'https://www.snyouth.or.kr/fmcs/32',
+  knownActionValue: '7328334a4cc9faa679e34190215a7e1a',
+  knownTitle: '수정유스센터 수영장 시범운영(일일 자유수영) 일정 안내',
+};
+
 // index.html에 하드코딩된 값과 동일하게 유지 (변경 감지 기준: 전체 슬롯 집합 + 휴관주차)
 const KNOWN_YOUTH = {
   yc_yatap:   { closedWeeks:[1,3], slots:['08:00~08:50','12:00~12:50','20:00~20:50','06:30~08:00','09:00~10:30','11:00~12:30','13:30~15:00','15:30~17:00','17:30~19:00'] },
@@ -298,6 +311,42 @@ function diffYouth(id, crawled) {
   return changes;
 }
 
+// 게시판 목록에서 최상단 고정("공지") 글의 action-value 해시 + 제목 추출
+function extractPinnedNotice(html) {
+  const m = html.match(/action-value=([a-f0-9]{32})"[^>]*>\s*(?:<span[^>]*>)?\s*([^<]{5,100})/);
+  return m ? { actionValue: m[1], title: m[2].trim() } : null;
+}
+
+async function crawlSujeongNotice(cfg) {
+  const [boardHtml, officialHtml] = await Promise.all([
+    fetchText(cfg.boardUrl),
+    fetchText(cfg.officialUrl),
+  ]);
+  const pinned = extractPinnedNotice(boardHtml);
+  // 정식 페이지에 실제 시간표가 채워졌는지 = 기존 유스센터 파서 재사용 (있으면 정식 운영 전환 신호)
+  const officialSlots = parseYouthSlots(extractYouthSwimSection(officialHtml));
+  return { pinned, officialSlots };
+}
+
+function diffSujeongNotice(cfg, crawled) {
+  const changes = [];
+  if (crawled.pinned && crawled.pinned.actionValue !== cfg.knownActionValue) {
+    changes.push({
+      field: 'notice',
+      old: cfg.knownTitle,
+      new: crawled.pinned.title,
+      desc: `공지 변경 감지: "${cfg.knownTitle}" → "${crawled.pinned.title}" (수동 확인 필요)`,
+    });
+  }
+  if (crawled.officialSlots.length > 0) {
+    changes.push({
+      field: 'officialPage',
+      desc: `정식 운영시간안내 페이지(fmcs/32)에 시간표 등장(${crawled.officialSlots.length}개 슬롯) — 정식 운영 전환 가능성, 표준 유스센터 파싱으로 전환 검토`,
+    });
+  }
+  return changes;
+}
+
 async function main() {
   const today = new Date().toLocaleDateString('ko-KR', {year:'numeric', month:'long', day:'numeric'});
   console.log(`\n=== 성남 수영장 시간표 점검 (${today}) ===\n`);
@@ -349,6 +398,24 @@ async function main() {
       youthResults.push({ id: pool.id, pool: pool.name, url: pool.url, status: 'changed', changes });
     }
   }
+  // 수정유스센터: 시범운영 공지 감시 (정식 페이지 미반영 기간 한정)
+  process.stdout.write(`${SUJEONG_NOTICE.name} 공지 확인 중... `);
+  try {
+    const crawled = await crawlSujeongNotice(SUJEONG_NOTICE);
+    const changes = diffSujeongNotice(SUJEONG_NOTICE, crawled);
+    if (changes.length === 0) {
+      console.log(`  → 이상 없음 ✓`);
+      youthResults.push({ id: SUJEONG_NOTICE.id, pool: SUJEONG_NOTICE.name, url: SUJEONG_NOTICE.boardUrl, status: 'ok' });
+    } else {
+      console.log(`  → ⚠️ 변경 감지! (수동 검토 필요)`);
+      changes.forEach(c => console.log(`     ${c.desc}`));
+      youthResults.push({ id: SUJEONG_NOTICE.id, pool: SUJEONG_NOTICE.name, url: SUJEONG_NOTICE.boardUrl, status: 'changed', changes });
+    }
+  } catch (e) {
+    console.log(`오류: ${e.message}`);
+    youthResults.push({ id: SUJEONG_NOTICE.id, pool: SUJEONG_NOTICE.name, url: SUJEONG_NOTICE.boardUrl, status: 'error', error: e.message });
+  }
+
   const youthChanged = youthResults.filter(r => r.status === 'changed');
   const youthErrors  = youthResults.filter(r => r.status === 'error');
 

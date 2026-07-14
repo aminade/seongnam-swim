@@ -405,7 +405,7 @@
   <footer class="swim-footer">
     <div class="footer-mark">오늘의 자유수영</div>
     <div class="footer-meta">
-      성남 공공 수영장 9곳 (성남도시개발공사 6 · 청소년청년재단 유스센터 3) · 데이터 기준 2026년 7월<br>
+      성남 공공 수영장 10곳 (성남도시개발공사 6 · 청소년청년재단 유스센터 4) · 데이터 기준 2026년 7월<br>
       출처 <a href="https://spo.isdc.co.kr" target="_blank">spo.isdc.co.kr</a> · <a href="https://www.snyouth.or.kr" target="_blank">snyouth.or.kr</a> · 스케줄은 변경될 수 있으니 각 센터 홈페이지를 확인하세요.
     </div>
     <button type="button" class="fb-entry" id="fbEntry">
@@ -592,8 +592,14 @@ document.addEventListener('DOMContentLoaded', function() {
           winter:[{time:'06:30~08:00',dur:90},{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}] },
         sundaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
         weekdayPrice:{adult:3000,teen:2500,child:1900}, weekendPrice:{adult:3000,teen:2500,child:1900}, priceNote:null },
+      // 수정유스센터: 신축 건물 시범운영 중(2026-07-25~별도 공지시까지). 정식 페이지(fmcs/32) 미반영, 공지사항(fmcs/22)만 근거.
+      { id:'yc_sujeong', name:'수정유스센터', area:'수정구 신흥동', url:'https://www.snyouth.or.kr/fmcs/22?action=read&action-value=7328334a4cc9faa679e34190215a7e1a', closedWeeks:[1,2,3,4,5], closedOnHoliday:'all', startsOn:'2026-07-25', feature:'유스센터 · 시범운영',
+        weekdaySlots:[{time:'09:00~10:30',dur:90},{time:'13:30~15:00',dur:90}],
+        saturdaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
+        sundaySlots:[],
+        weekdayPrice:null, weekendPrice:null, priceNote:'무료 (시범운영, 7.25~별도 공지시까지 · 일·공휴일 미운영)' },
     ];
-    const POOL_SHORT = { tanchen:'탄천', seongnam:'성남', hwangse:'황새울', pangyo:'판교', pyengsaeng:'평생', geumgok:'금곡', yc_yatap:'야탑유스', yc_jungwon:'중원유스', yc_pangyo:'판교유스' };
+    const POOL_SHORT = { tanchen:'탄천', seongnam:'성남', hwangse:'황새울', pangyo:'판교', pyengsaeng:'평생', geumgok:'금곡', yc_yatap:'야탑유스', yc_jungwon:'중원유스', yc_pangyo:'판교유스', yc_sujeong:'수정유스' };
     const DAY_NAMES = ['일','월','화','수','목','금','토'];
 
     const HOLIDAYS = new Set([
@@ -622,8 +628,11 @@ function isHoliday(date){
 }
 function isWeekendOrHoliday(date){ const d=date.getDay(); return d===0||d===6||isHoliday(date); }
 function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,m,d); if(dt.getMonth()!==m) break; if(dt.getDay()===0){ c++; if(c===n) return d; } } return -1; }
+    function dateStr(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
+    function poolExistsOn(pool,date){ return !pool.startsOn || dateStr(date) >= pool.startsOn; } // 아직 개장 전(시범운영 시작 전)이면 '휴관'이 아니라 '존재하지 않음'
     function isClosedDay(pool,date){
       // 'all'=모든 법정공휴일 휴관(유스센터), 'lunar'=설·추석 연휴만 휴장(공사)
+      if(!poolExistsOn(pool,date)) return true; // 개장 전 — 시간표 표시상으로는 휴관과 동일 취급
       if(pool.closedOnHoliday==='all' && isHoliday(date)) return true;
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return true;
       if(date.getDay()!==0) return false;
@@ -698,7 +707,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       const today=getToday();
       const isToday=selectedDate.getTime()===today.getTime();
       const states=POOLS.map(p=>({pool:p, st:poolState(p,selectedDate,isToday)}));
-      const BASE_ORDER=['tanchen','seongnam','geumgok','hwangse','pangyo','pyengsaeng','yc_yatap','yc_jungwon','yc_pangyo'];
+      const BASE_ORDER=['tanchen','seongnam','geumgok','hwangse','pangyo','pyengsaeng','yc_yatap','yc_jungwon','yc_pangyo','yc_sujeong'];
       const orderIdx=id=>BASE_ORDER.indexOf(id);
       const rank={open:0,ended:1,closed:2};
       states.sort((a,b)=>{
@@ -724,7 +733,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
             ? `<div class="lb">현재 운영중</div><div class="vl run">${st.range}</div>`
             : `<div class="lb">다음 타임</div><div class="vl">${st.next}</div>`;
         } else if(isEnded){ rightHtml=`<div class="st">오늘 종료</div>`; }
-        else { rightHtml=`<div class="st closed">휴관</div>`; }
+        else { rightHtml=`<div class="st closed">${poolExistsOn(pool,selectedDate)?'휴관':'미운영'}</div>`; }
 
         const dotCls = isOpen?'open':(isEnded?'ended':'closed');
 
@@ -747,7 +756,8 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
             const note=document.createElement('div');
             note.className='closed-note';
             note.textContent =
-              (pool.closedOnHoliday==='lunar' && isLunarHoliday(selectedDate)) ? '설·추석 연휴 휴장'
+              !poolExistsOn(pool,selectedDate) ? `${pool.startsOn.split('-').slice(1).map(Number).join('.')}부터 시범운영 예정`
+              : (pool.closedOnHoliday==='lunar' && isLunarHoliday(selectedDate)) ? '설·추석 연휴 휴장'
               : (pool.closedOnHoliday==='all' && isHoliday(selectedDate)) ? '법정공휴일 휴관'
               : `매월 ${pool.closedWeeks.join('·')}번째 일요일 정기휴관`;
             row.appendChild(note);
@@ -792,8 +802,9 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       for(let i=0;i<off;i++) html+=`<div class="cal-cell2 cal-empty"></div>`;
       for(let d=1;d<=last.getDate();d++){
         const date=new Date(calYear,calMonth,d);
-        const closedCount=POOLS.filter(p=>isClosedDay(p,date)).length;
-        const cls=closedCount===0?'open':(closedCount===POOLS.length?'clo':'mix');
+        const existingPools=POOLS.filter(p=>poolExistsOn(p,date)); // 개장 전 시설은 '휴관'이 아니라 아예 집계에서 제외
+        const closedCount=existingPools.filter(p=>isClosedDay(p,date)).length;
+        const cls=closedCount===0?'open':(closedCount===existingPools.length?'clo':'mix');
         const isT=date.getTime()===today.getTime();
         const sel=selectedCalDate && date.getTime()===selectedCalDate.getTime();
         html+=`<div class="cal-cell2${isT?' today':''}${sel?' sel':''}" data-d="${d}"><span class="disc ${cls}"><span class="n">${d}</span></span></div>`;
@@ -807,15 +818,17 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
 
     function renderCalTimeline(date){
       document.getElementById('calDayLabel').textContent=`${date.getMonth()+1}월 ${date.getDate()}일 (${DAY_NAMES[date.getDay()]})`;
-      const openCount=POOLS.filter(p=>!isClosedDay(p,date)).length;
-      document.getElementById('calDaySub').textContent = openCount===POOLS.length ? '' : `${openCount}곳 운영 · ${POOLS.length-openCount}곳 휴관`;
+      const existingPools=POOLS.filter(p=>poolExistsOn(p,date));
+      const openCount=existingPools.filter(p=>!isClosedDay(p,date)).length;
+      document.getElementById('calDaySub').textContent = openCount===existingPools.length ? '' : `${openCount}곳 운영 · ${existingPools.length-openCount}곳 휴관`;
       const START=360, PPM=40/60, PAD=12;
       const xOf=m=>PAD+(m-START)*PPM;
-      const order=['tanchen','seongnam','geumgok','hwangse','pangyo','pyengsaeng','yc_yatap','yc_jungwon','yc_pangyo'];
+      const order=['tanchen','seongnam','geumgok','hwangse','pangyo','pyengsaeng','yc_yatap','yc_jungwon','yc_pangyo','yc_sujeong'];
       // 바 색상: 2시간(진한 하늘색) / 1시간 30분(중간) / 1시간 이하(연한)
       const barCls=dur=> dur<=60?'sm':(dur<=90?'md':'');
       const rowsHtml=order.map(id=>{
         const pool=POOLS.find(p=>p.id===id);
+        if(!poolExistsOn(pool,date)) return `<div class="tlrow clo"><div class="name">${POOL_SHORT[id]}</div><div class="track"><span class="clow">${pool.startsOn.split('-').slice(1).map(Number).join('.')}부터 시범운영 예정</span></div></div>`;
         if(isClosedDay(pool,date)) return `<div class="tlrow clo"><div class="name">${POOL_SHORT[id]}</div><div class="track"><span class="clow">정기휴관</span></div></div>`;
         const bars=slotsFor(pool,date).map(s=>{ const a=mins(s.time.split('~')[0]), b=mins(s.time.split('~')[1]), dur=b-a; return `<div class="bar ${barCls(dur)}" style="left:${xOf(a)}px;width:${(b-a)*PPM}px"></div>`; }).join('');
         return `<div class="tlrow"><div class="name">${POOL_SHORT[id]}</div><div class="track">${bars}</div></div>`;
@@ -858,7 +871,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       HANGANG_POOLS.forEach(pool=>{
         const isOpen=!!hgExpanded[pool.id];
         const isNight=pool.hours.nightAvailable;
-        const typeLabel=pool.type==='pool' ? '수영장' : '물놀이장 · 수심 1m';
+        const depthLabel=pool.type==='play' ? '수심 1m' : null;
         const row=document.createElement('div');
         row.className='hg-row';
         row.innerHTML=`
@@ -866,7 +879,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
             <span class="hg-dot"></span>
             <div class="hg-row-main">
               <div class="hg-row-name">${pool.name}</div>
-              <div class="hg-row-meta">${pool.area} · ${typeLabel}</div>
+              <div class="hg-row-meta">${pool.area}${depthLabel?' · '+depthLabel:''}</div>
             </div>
             ${pool.naverReservation
               ? `<a href="https://map.naver.com/p/entry/place/${pool.naverPlaceId}" class="hg-book naver" target="_blank" rel="noopener noreferrer">네이버 예약</a>`
@@ -879,6 +892,8 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
           renderHangangList();
           if(!isOpen) gtag('event','hangang_pool_'+pool.id,{pool_name:pool.name});
         });
+        const bookLink=row.querySelector('.hg-book.naver');
+        if(bookLink) bookLink.addEventListener('click',()=>{ gtag('event','hangang_book_'+pool.id,{pool_name:pool.name}); });
         if(isOpen){
           const price=pool.type==='pool' ? HANGANG_COMMON.price.pool : HANGANG_COMMON.price.play;
           const startTime=pool.hours.day.split('~')[0];
@@ -918,7 +933,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       document.getElementById('hangangFab').style.display='flex';
       document.getElementById('hangangFab').addEventListener('click', showHangang);
     }
-    document.getElementById('hgBackBtn').addEventListener('click', showSeongnam);
+    document.getElementById('hgBackBtn').addEventListener('click', ()=>{ gtag('event','hangang_back'); showSeongnam(); });
 
     // 항상 성남 페이지로 시작 (뒤로/앞으로가기로 인한 bfcache 복원 시에도 강제 초기화)
     document.getElementById('hangangView').style.display='none';
