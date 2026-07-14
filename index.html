@@ -20,7 +20,7 @@
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>오늘의 자유수영</title>
-<meta name="description" content="성남·분당 공공수영장 9곳(탄천·성남·황새울·판교 등)의 자유수영 시간표·요금·휴관일·운영상태를 한눈에. 매월 자동 업데이트.">
+<meta name="description" content="성남·분당 자유수영(탄천·성남·황새울·금곡·판교 등)과 한강 야외수영장 정보를 한눈에. 운영시간, 요금, 예약 정보를 쉽고 빠르게 비교하세요.">
 <link rel="canonical" href="https://swim.andlife.app/">
 <meta name="theme-color" content="#1fa6e8">
 <meta name="naver-site-verification" content="43274e1696a134df804d7f341388f22de00fdb1d" />
@@ -28,7 +28,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Swim">
 <meta property="og:title" content="오늘의 자유수영">
-<meta property="og:description" content="성남 지역의 수영장 위치, 시설, 자유수영 시간표를 확인해 보세요">
+<meta property="og:description" content="🏊 오늘 자유수영 어디 가지? 오늘 갈 수 있는 곳, 쉽고 빠르게 찾아보세요.">
 <meta property="og:url" content="https://swim.andlife.app/">
 <meta property="og:image" content="https://swim.andlife.app/og-image.jpg">
 <meta property="og:image:width" content="1200">
@@ -37,7 +37,7 @@
 <!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="오늘의 자유수영">
-<meta name="twitter:description" content="성남 지역의 수영장 위치, 시설, 자유수영 시간표를 확인해 보세요">
+<meta name="twitter:description" content="🏊 오늘 자유수영 어디 가지? 오늘 갈 수 있는 곳, 쉽고 빠르게 찾아보세요.">
 <meta name="twitter:image" content="https://swim.andlife.app/og-image.jpg">
 <!-- 구조화 데이터 -->
 <script type="application/ld+json">
@@ -48,7 +48,7 @@
   "alternateName": "성남 수영장 정보",
   "url": "https://swim.andlife.app/",
   "inLanguage": "ko-KR",
-  "description": "성남 지역의 수영장 위치, 시설, 자유수영 시간표를 확인해 보세요"
+  "description": "성남·분당 자유수영(탄천·성남·황새울·금곡·판교 등)과 한강 야외수영장 정보를 한눈에. 운영시간, 요금, 예약 정보를 쉽고 빠르게 비교하세요."
 }
 </script>
 <!-- Google Analytics 4 -->
@@ -441,8 +441,10 @@
     <div class="hg-divider"></div>
     <ul class="hg-notes">
       <li>점심 12~13시, 저녁 17:30~19시 입수 불가, 마감 30분전 물놀이 종료 (매시 15분 휴식)</li>
-      <li>폭우로 침수 위험 시 일시 중단</li>
+      <li>수영복·캡모자 착용 필수</li>
+      <li>대형 튜브 사용 불가(1m 이상), 수영 보조용품 사용 불가(킥판, 땅콩부이, 오리발 등)</li>
       <li>음식물 다회용기만 반입 가능 · 배달·주류 금지</li>
+      <li>폭우로 침수 위험 시 일시 중단</li>
     </ul>
   </div>
 
@@ -541,11 +543,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const POOLS = [
       { id:'tanchen', name:'탄천종합운동장', area:'분당구 야탑동', url:'https://spo.isdc.co.kr/tan_programGuide.do', closedWeeks:[1,3], closedOnHoliday:'lunar', feature:'50m 풀',
-        weekdaySlots:[{time:'06:00~07:50',dur:120},{time:'12:00~13:50',dur:120},{time:'15:00~16:50',dur:120},{time:'19:00~20:50',dur:120}],
+        weekdaySlots:[{time:'06:00~07:50',dur:120,note:'상급자·수심 2m'},{time:'12:00~13:50',dur:120},{time:'15:00~16:50',dur:120},{time:'19:00~20:50',dur:120,note:'상급자·수심 2m'}],
         saturdaySlots:[{time:'07:00~08:50',dur:120},{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         weekdayPrice:{adult:3600,teen:3000,child:2400}, weekendPrice:{adult:3600,teen:3000,child:2400} },
-      { id:'seongnam', name:'성남종합운동장', area:'수정구 신흥동', url:'https://spo.isdc.co.kr/sns_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', feature:null,
+      { id:'seongnam', name:'성남종합운동장', area:'수정구 신흥동', url:'https://spo.isdc.co.kr/sns_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', feature:'50m 풀',
         weekdaySlots:[{time:'06:00~07:50',dur:120},{time:'09:00~10:50',dur:120},{time:'12:00~13:50',dur:120},{time:'19:00~20:50',dur:120}],
         saturdaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
@@ -882,7 +884,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       HANGANG_POOLS.forEach(pool=>{
         const isOpen=!!hgExpanded[pool.id];
         const isNight=pool.hours.nightAvailable;
-        const depthLabel=pool.type==='play' ? '수심 1m' : null;
+        const depthLabel=pool.depth ? '수심 '+pool.depth.max : null;
         const row=document.createElement('div');
         row.className='hg-row';
         row.innerHTML=`
@@ -913,11 +915,15 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
           const breaks=[`<div class="hg-break-row"><span class="hg-break-label">점심시간</span><span class="hg-break-val">12:00–13:00</span></div>`];
           if(isNight) breaks.push(`<div class="hg-break-row"><span class="hg-break-label">저녁시간</span><span class="hg-break-val">17:30–19:00</span></div>`);
           breaks.push(`<div class="hg-break-row"><span class="hg-break-label">물놀이 종료</span><span class="hg-break-val">${closeBufferStart}–${endTime}</span></div>`);
+          const depthRows=pool.depth.items.length
+            ? pool.depth.items.map(it=>`<div class="hg-break-row"><span class="hg-break-label">${it.name}</span><span class="hg-break-val">${it.value}</span></div>`).join('')
+            : `<div class="hg-break-row"><span class="hg-break-label">수심</span><span class="hg-break-val">최대 ${pool.depth.max}</span></div>`;
           const det=document.createElement('div');
           det.className='hg-detail open';
           det.innerHTML=`
             <div class="hg-time-pills"><span class="hg-time-pill">${startTime} – ${endTime}</span></div>
             <div class="hg-breaks">${breaks.join('')}</div>
+            <div class="hg-breaks">${depthRows}</div>
             <div class="hg-price">성인 <b>${price.adult.toLocaleString()}</b> · 청소년 <b>${price.teen.toLocaleString()}</b> · 어린이 <b>${price.child.toLocaleString()}</b></div>`;
           row.appendChild(det);
         }

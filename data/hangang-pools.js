@@ -44,6 +44,12 @@ const HANGANG_POOLS = [
     name: '뚝섬 한강공원 수영장',
     type: 'pool', // pool: 수영장(성인 이용 가능한 정식 수영장) / play: 물놀이장(유아·아동 위주 얕은 물놀이 시설)
     area: '광진구 자양동',
+    depth: { max: '1.2m', items: [
+      { name: '성인풀', value: '1.2m(최대)' },
+      { name: '어린이풀', value: '0.6m' },
+      { name: '유아풀', value: '0.4m' },
+      { name: '유수풀', value: '1.0m' },
+    ] },
     url: 'https://hangang.seoul.go.kr/www/contents/774.do?mid=505',
     hours: { day: '09:00~18:00', night: '18:00~22:00', nightFrom: '2026-07-03', nightAvailable: true },
     naverReservation: true, // 2026-07-13 재검색: 현장방문도 가능하지만 네이버 예약도 지원 (출처: 서울시 미디어허브)
@@ -64,6 +70,11 @@ const HANGANG_POOLS = [
     name: '여의도 한강공원 수영장',
     type: 'pool',
     area: '영등포구 여의도동',
+    depth: { max: '1.2m', items: [
+      { name: '성인풀', value: '1.2m' },
+      { name: '어린이풀', value: '0.6m' },
+      { name: '유아풀', value: '0.4m' },
+    ] },
     url: 'https://hangang.seoul.go.kr/www/facility/map.tab?srchCd=9016',
     hours: { day: '09:00~18:00', night: '18:00~22:00', nightFrom: '2026-07-03', nightAvailable: true },
     naverReservation: true,
@@ -83,6 +94,11 @@ const HANGANG_POOLS = [
     name: '잠실 한강공원 물놀이장',
     type: 'play',
     area: '송파구 잠실동',
+    depth: { max: '1.0m', items: [
+      { name: '원더풀', value: '1.0m(최대)' },
+      { name: '조이풀', value: '0.6m' },
+      { name: '유아풀', value: '0.3m' },
+    ] },
     url: 'https://hangang.seoul.go.kr/www/facility/map.tab?srchCd=9014',
     hours: { day: '09:00~18:00', night: '18:00~22:00', nightFrom: '2026-07-03', nightAvailable: true },
     naverReservation: true, // 2026-07-13 재검색: 사전예약 필수로 보도됨(utrip.kr) — 현장예매 불가할 수 있어 온라인 예약 권장
@@ -100,6 +116,10 @@ const HANGANG_POOLS = [
     name: '광나루 한강공원 물놀이장',
     type: 'play',
     area: '광진구 광장동',
+    depth: { max: '1.0m', items: [
+      { name: '패밀리풀', value: '1.0m(최대)' },
+      { name: '유아풀', value: '0.3m' },
+    ] },
     url: 'https://hangang.seoul.go.kr/www/facility/map.tab?srchCd=9013',
     hours: { day: '09:00~18:00', night: null, nightFrom: null, nightAvailable: false }, // 공식: 뚝섬·여의도·잠실·난지만 야간, 광나루·양화 제외
     naverReservation: true, // 2026-07-13 재검색: 네이버 지도 예약 가능하다는 후기 확인
@@ -117,6 +137,7 @@ const HANGANG_POOLS = [
     name: '양화 한강공원 물놀이장',
     type: 'play',
     area: '영등포구 양화동',
+    depth: { max: '0.8m', items: [] },
     url: 'https://hangang.seoul.go.kr/www/facility/map.tab?srchCd=9019',
     hours: { day: '09:00~18:00', night: null, nightFrom: null, nightAvailable: false },
     naverReservation: true,
@@ -133,6 +154,7 @@ const HANGANG_POOLS = [
     name: '난지 한강공원 물놀이장',
     type: 'play',
     area: '마포구 상암동',
+    depth: { max: '1.0m', items: [] },
     url: 'https://hangang.seoul.go.kr/www/facility/map.tab?srchCd=9055',
     hours: { day: '09:00~18:00', night: '18:00~22:00', nightFrom: '2026-07-03', nightAvailable: true },
     naverReservation: true,
