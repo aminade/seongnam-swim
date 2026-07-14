@@ -923,7 +923,16 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
     function showHangang(){
       hgSwapView(document.getElementById('seongnamView'), document.getElementById('hangangView'));
       renderHangangCommon(); renderHangangList();
-      gtag('event','hangang_open');
+      // 진짜 페이지뷰로 집계 — 진입 버튼(둥둥이)이 나중에 바뀌거나 없어져도 "한강 페이지를 봤다"는
+      // 이 가상 페이지뷰 하나만 유지하면 계속 같은 방식으로 집계된다. 세션 내 중복 방문은
+      // GA4가 리포트 조회 시 sessions 지표로 자동으로 묶어주므로 클라이언트에서 직접 중복
+      // 방지를 할 필요가 없다(실제 웹사이트 페이지 이동과 동일한 방식).
+      // page_title로 구분한다 — page_location의 pagePath는 GitHub Pages 서브경로(예: /seongnam-swim/)에
+      // 좌우되고 해시(#)는 GA4가 pagePath 계산에서 잘라내 버려 안정적인 필터 키가 못 된다.
+      gtag('event','page_view',{
+        page_title: '한강 야외수영장 - Swim, Seongnam',
+        page_location: location.href.split('#')[0] + '#hangang',
+      });
     }
     function showSeongnam(){
       hgSwapView(document.getElementById('hangangView'), document.getElementById('seongnamView'));

@@ -25,6 +25,22 @@ const POOL_NAMES = {
   geumgok:   '금곡스포츠센터',
   pangyo:    '판교스포츠센터',
   pyengsaeng:'평생학습스포츠센터',
+  yc_yatap:  '야탑유스센터',
+  yc_jungwon:'중원유스센터',
+  yc_pangyo: '판교유스센터',
+  yc_sujeong:'수정유스센터',
+};
+
+// index.html의 showHangang()이 보내는 가상 페이지뷰 page_title과 정확히 일치해야 한다.
+const HANGANG_PAGE_TITLE = '한강 야외수영장 - Swim, Seongnam';
+
+const HANGANG_POOL_NAMES = {
+  ddukseom:  '뚝섬 한강공원 수영장',
+  yeouido:   '여의도 한강공원 수영장',
+  jamsil:    '잠실 한강공원 물놀이장',
+  gwangnaru: '광나루 한강공원 물놀이장',
+  yanghwa:   '양화 한강공원 물놀이장',
+  nanji:     '난지 한강공원 물놀이장',
 };
 
 function doGet(e) {
@@ -77,9 +93,46 @@ function gaRunReport(prop, request) {
   return JSON.parse(res.getContentText());
 }
 
+// ── 진짜 실시간 접속자 (Realtime Data API, runReport와 별개 엔드포인트) ──
+function gaRunRealtimeReport(prop, request) {
+  const url = 'https://analyticsdata.googleapis.com/v1beta/' + prop + ':runRealtimeReport';
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: JSON.stringify(request),
+    muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() !== 200) {
+    throw new Error('GA4 Realtime API ' + res.getResponseCode() + ': ' + res.getContentText());
+  }
+  return JSON.parse(res.getContentText());
+}
+
+// ── 속성의 리포팅 타임존 조회 (Admin API) — "오늘"이 실제로 어느 시간대 기준인지 진단용 ──
+function gaGetPropertyTimeZone(prop) {
+  try {
+    const url = 'https://analyticsadmin.googleapis.com/v1beta/' + prop;
+    const res = UrlFetchApp.fetch(url, {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) return '조회 실패(' + res.getResponseCode() + ')';
+    const info = JSON.parse(res.getContentText());
+    return info.timeZone || '알 수 없음';
+  } catch (e) {
+    return '조회 실패: ' + e.message;
+  }
+}
+
 function buildDashboardData() {
   const prop = `properties/${PROPERTY_ID}`;
   const now = new Date();
+  // 'today' 같은 GA4 상대 날짜 키워드는 속성(GA4 프로퍼티)에 설정된 리포팅 타임존 기준으로
+  // 해석된다. 그 타임존이 Asia/Seoul이 아니면 "오늘"이 한국 기준 오늘이 아닐 수 있어서,
+  // 모든 날짜를 이렇게 명시적으로 Asia/Seoul 기준 문자열로 고정해 쓴다.
+  const todayStr = Utilities.formatDate(now, 'Asia/Seoul', 'yyyy-MM-dd');
   const firstOfMonth = Utilities.formatDate(
     new Date(now.getFullYear(), now.getMonth(), 1),
     'Asia/Seoul', 'yyyy-MM-dd'
@@ -88,13 +141,16 @@ function buildDashboardData() {
     new Date(now.getTime() - 86400000),
     'Asia/Seoul', 'yyyy-MM-dd'
   );
+  const propertyTimeZone = gaGetPropertyTimeZone(prop);
 
   // ── 오늘 핵심 지표 ──
+  // 오늘/어제를 한 요청에 dateRanges 2개로 넣으면 응답 rows 순서가 요청 순서와 항상
+  // 같다고 보장이 안 돼서(실측 결과 뒤바뀌어 나옴) 두 값이 뒤바뀔 수 있었다.
+  // 'dateRange'를 dimensions에 넣어 라벨로 구분하는 방법도 시도했지만 GA4가
+  // "dateRange는 dimension이 아니라 orderBy/pivot에만 쓸 수 있다"고 거부한다.
+  // 그래서 아예 오늘/어제를 각각 별도 요청으로 분리해 모호함 자체를 없앤다.
   const todayR = gaRunReport(prop, {
-    dateRanges: [
-      { startDate: 'today', endDate: 'today' },
-      { startDate: yesterday, endDate: yesterday },
-    ],
+    dateRanges: [{ startDate: todayStr, endDate: todayStr }],
     metrics: [
       { name: 'activeUsers' },
       { name: 'sessions' },
@@ -104,22 +160,26 @@ function buildDashboardData() {
       { name: 'newUsers' },
     ],
   });
+  const yesterdayR = gaRunReport(prop, {
+    dateRanges: [{ startDate: yesterday, endDate: yesterday }],
+    metrics: [{ name: 'activeUsers' }],
+  });
 
   // ── 이번달 ──
   const monthR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     metrics: [{ name: 'activeUsers' }],
   });
 
   // ── 전체 누적 ──
   const totalR = gaRunReport(prop, {
-    dateRanges: [{ startDate: '2024-01-01', endDate: 'today' }],
+    dateRanges: [{ startDate: '2024-01-01', endDate: todayStr }],
     metrics: [{ name: 'activeUsers' }],
   });
 
   // ── 30일 추이 ──
   const trendR = gaRunReport(prop, {
-    dateRanges: [{ startDate: '29daysAgo', endDate: 'today' }],
+    dateRanges: [{ startDate: '29daysAgo', endDate: todayStr }],
     dimensions: [{ name: 'date' }],
     metrics: [{ name: 'activeUsers' }, { name: 'newUsers' }],
     orderBys: [{ dimension: { dimensionName: 'date' } }],
@@ -127,7 +187,7 @@ function buildDashboardData() {
 
   // ── 시간대별 (오늘) ──
   const hourlyR = gaRunReport(prop, {
-    dateRanges: [{ startDate: 'today', endDate: 'today' }],
+    dateRanges: [{ startDate: todayStr, endDate: todayStr }],
     dimensions: [{ name: 'hour' }],
     metrics: [{ name: 'activeUsers' }],
     orderBys: [{ dimension: { dimensionName: 'hour' } }],
@@ -135,14 +195,14 @@ function buildDashboardData() {
 
   // ── 기기 유형 (이번달) ──
   const deviceR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     dimensions: [{ name: 'deviceCategory' }],
     metrics: [{ name: 'activeUsers' }],
   });
 
   // ── 유입 경로 (이번달) ──
   const sourceR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     dimensions: [{ name: 'sessionSource' }],
     metrics: [{ name: 'activeUsers' }],
     orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
@@ -151,7 +211,7 @@ function buildDashboardData() {
 
   // ── 지역 (이번달) ──
   const cityR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     dimensions: [{ name: 'city' }],
     metrics: [{ name: 'activeUsers' }],
     orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
@@ -160,7 +220,7 @@ function buildDashboardData() {
 
   // ── 탭 클릭 (이번달) ──
   const tabR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'eventCount' }],
     dimensionFilter: {
@@ -170,7 +230,7 @@ function buildDashboardData() {
 
   // ── 수영장 클릭 (이번달) ──
   const poolR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'eventCount' }],
     dimensionFilter: {
@@ -179,10 +239,70 @@ function buildDashboardData() {
     orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
   });
 
+  // ── 한강 페이지 방문 (세션 기준, 이번달) ──
+  // 가상 페이지뷰(page_title로 식별)의 세션 수를 쓴다. 진입 버튼(둥둥이)이 바뀌거나
+  // 없어져도 이 가상 페이지뷰만 유지하면 계속 같은 방식으로 집계되고, 같은 세션에서
+  // 여러 번 들어와도 sessions 지표는 세션 단위로 묶여서 중복 집계되지 않는다.
+  // pagePath가 아니라 pageTitle로 거르는 이유: pagePath는 GitHub Pages 서브경로에 좌우된다.
+  const hangangViewR = gaRunReport(prop, {
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    metrics: [{ name: 'sessions' }],
+    dimensionFilter: {
+      filter: { fieldName: 'pageTitle', stringFilter: { matchType: 'EXACT', value: HANGANG_PAGE_TITLE } },
+    },
+  });
+
+  // ── 한강 페이지 이탈(성남으로 돌아가기) (이번달) ──
+  const hangangBackR = gaRunReport(prop, {
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    metrics: [{ name: 'eventCount' }],
+    dimensionFilter: {
+      filter: { fieldName: 'eventName', stringFilter: { matchType: 'EXACT', value: 'hangang_back' } },
+    },
+  });
+
+  // ── 한강 시설별 펼치기 (이번달) ──
+  const hangangPoolR = gaRunReport(prop, {
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dimensions: [{ name: 'eventName' }],
+    metrics: [{ name: 'eventCount' }],
+    dimensionFilter: {
+      filter: { fieldName: 'eventName', stringFilter: { matchType: 'BEGINS_WITH', value: 'hangang_pool_' } },
+    },
+    orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+  });
+
+  // ── 한강 네이버 예약 클릭 (이번달) ──
+  const hangangBookR = gaRunReport(prop, {
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dimensions: [{ name: 'eventName' }],
+    metrics: [{ name: 'eventCount' }],
+    dimensionFilter: {
+      filter: { fieldName: 'eventName', stringFilter: { matchType: 'BEGINS_WITH', value: 'hangang_book_' } },
+    },
+    orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+  });
+
+  // ── 한강 페이지 방문 30일 추이 (세션 기준) ──
+  const hangangTrendR = gaRunReport(prop, {
+    dateRanges: [{ startDate: '29daysAgo', endDate: todayStr }],
+    dimensions: [{ name: 'date' }],
+    metrics: [{ name: 'sessions' }],
+    dimensionFilter: {
+      filter: { fieldName: 'pageTitle', stringFilter: { matchType: 'EXACT', value: HANGANG_PAGE_TITLE } },
+    },
+    orderBys: [{ dimension: { dimensionName: 'date' } }],
+  });
+
   // ── 신규 vs 재방문 (이번달) ──
   const nvrR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: 'today' }],
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     dimensions: [{ name: 'newVsReturning' }],
+    metrics: [{ name: 'activeUsers' }],
+  });
+
+  // ── 진짜 실시간 접속자 (지난 30분, Realtime Data API) ──
+  const realtimeR = gaRunRealtimeReport(prop, {
     metrics: [{ name: 'activeUsers' }],
   });
 
@@ -201,9 +321,9 @@ function buildDashboardData() {
     return obj;
   }
 
-  // 오늘 / 어제 (dateRanges 2개라 rowIdx로 구분)
+  // 오늘 / 어제 (각각 별도 요청이라 항상 rows[0]이 그 날짜의 값)
   const todayVisitors  = metricVal(todayR, 0, 0);
-  const ystdVisitors   = metricVal(todayR, 1, 0);
+  const ystdVisitors   = metricVal(yesterdayR, 0, 0);
   const todaySessions  = metricVal(todayR, 0, 1);
   const todayPageviews = metricVal(todayR, 0, 2);
   const avgDuration    = metricVal(todayR, 0, 3);
@@ -261,6 +381,33 @@ function buildDashboardData() {
     clicks: parseInt(r.metricValues[0].value) || 0,
   }));
 
+  // 한강 페이지 방문(세션)/이탈
+  const hangangOpens = metricVal(hangangViewR, 0, 0);
+  const hangangBacks = metricVal(hangangBackR, 0, 0);
+
+  // 한강 시설별 펼치기
+  const hangangPools = (hangangPoolR.rows || []).map(r => {
+    const id = r.dimensionValues[0].value.replace('hangang_pool_', '');
+    return { id, name: HANGANG_POOL_NAMES[id] || id, clicks: parseInt(r.metricValues[0].value) || 0 };
+  });
+
+  // 한강 네이버 예약 클릭
+  const hangangBooks = (hangangBookR.rows || []).map(r => {
+    const id = r.dimensionValues[0].value.replace('hangang_book_', '');
+    return { id, name: HANGANG_POOL_NAMES[id] || id, clicks: parseInt(r.metricValues[0].value) || 0 };
+  });
+  const hangangBookTotal = hangangBooks.reduce((s, b) => s + b.clicks, 0);
+  const hangangConversionRate = hangangOpens > 0 ? Math.round(hangangBookTotal / hangangOpens * 100) : 0;
+
+  // 한강 진입 30일 추이
+  const hangangTrend = (hangangTrendR.rows || []).map(r => ({
+    date: r.dimensionValues[0].value,
+    opens: parseInt(r.metricValues[0].value) || 0,
+  }));
+
+  // 진짜 실시간 접속자
+  const realtime = metricVal(realtimeR, 0, 0);
+
   // 재방문율
   const nvrObj = rowsToObj(nvrR, 0, 0);
   const nvrTotal = Object.values(nvrObj).reduce((a, b) => a + b, 0) || 1;
@@ -276,6 +423,8 @@ function buildDashboardData() {
     yesterday:   { visitors: Math.round(ystdVisitors) },
     month:       { visitors: Math.round(monthVisitors) },
     total:       { visitors: Math.round(totalVisitors) },
+    realtime:    Math.round(realtime),
+    debug:       { todayStr, yesterday, propertyTimeZone },
     avgDuration,
     bounceRate:  Math.round(bounceRate * 100),
     returningRate,
@@ -287,6 +436,15 @@ function buildDashboardData() {
     cities,
     tabs,
     pools,
+    hangang: {
+      opens: hangangOpens,
+      backs: hangangBacks,
+      conversionRate: hangangConversionRate,
+      bookTotal: hangangBookTotal,
+      pools: hangangPools,
+      books: hangangBooks,
+      trend: hangangTrend,
+    },
     generatedAt: new Date().toISOString(),
   };
 }
