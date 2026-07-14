@@ -206,6 +206,7 @@
 .price .it { font-size: 12.5px; }
 .price .it span { color: var(--faint); }
 .price .it b { font-weight: 600; margin-left: 5px; font-variant-numeric: tabular-nums; }
+.pool-note { font-size: 12px; color: var(--muted); padding-top: 10px; line-height: 1.4; }
 .more { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; color: var(--muted); text-decoration: none; font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; transition: color .15s; }
 .more:hover { color: var(--teal); }
 .closed-note { padding: 2px 2px 22px 36px; font-size: 12.5px; color: var(--sun); letter-spacing: .2px; }
@@ -397,7 +398,7 @@
       <div class="cal-body" id="calBody"></div>
       <div class="cal-day-head"><span class="d" id="calDayLabel"></span><span class="sub" id="calDaySub"></span></div>
       <div class="tl-scroller"><div class="tl" id="calTl"></div></div>
-      <div class="tl-legend"><span><span class="sw"></span>2시간</span><span><span class="sw md"></span>1시간 30분</span><span><span class="sw sm"></span>1시간</span></div>
+      <div class="tl-legend"><span><span class="sw"></span>2시간 이상</span><span><span class="sw md"></span>1시간 30분</span><span><span class="sw sm"></span>1시간</span></div>
       <div class="tl-hint">→ 좌우로 밀어 하루 전체를 볼 수 있어요</div>
     </div>
   </main>
@@ -405,8 +406,8 @@
   <footer class="swim-footer">
     <div class="footer-mark">오늘의 자유수영</div>
     <div class="footer-meta">
-      성남 공공 수영장 10곳 (성남도시개발공사 6 · 청소년청년재단 유스센터 4) · 데이터 기준 2026년 7월<br>
-      출처 <a href="https://spo.isdc.co.kr" target="_blank">spo.isdc.co.kr</a> · <a href="https://www.snyouth.or.kr" target="_blank">snyouth.or.kr</a> · 스케줄은 변경될 수 있으니 각 센터 홈페이지를 확인하세요.
+      성남 공공 수영장 11곳 (성남도시개발공사 6 · 청소년청년재단 유스센터 4 · 분당스포츠센터 1) · 데이터 기준 2026년 7월<br>
+      출처 <a href="https://spo.isdc.co.kr" target="_blank">spo.isdc.co.kr</a> · <a href="https://www.snyouth.or.kr" target="_blank">snyouth.or.kr</a> · <a href="https://www.ksponco.or.kr" target="_blank">ksponco.or.kr</a> · 스케줄은 변경될 수 있으니 각 센터 홈페이지를 확인하세요.
     </div>
     <button type="button" class="fb-entry" id="fbEntry">
       <div class="fb-entry-row"><span class="fb-entry-icon">✎</span><span class="fb-entry-title">피드백 보내기</span></div>
@@ -598,8 +599,15 @@ document.addEventListener('DOMContentLoaded', function() {
         saturdaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
         sundaySlots:[],
         weekdayPrice:null, weekendPrice:null, priceNote:'무료 (시범운영, 7.25~별도 공지시까지 · 일·공휴일 미운영)' },
+      // 분당올림픽스포츠센터: 성남도시개발공사가 아닌 한국체육산업개발(국민체육진흥공단 계열)이 운영하는 별도 공공 시설.
+      // 공휴일에도 주말과 동일 시간표로 운영(휴관 아님). 정기휴관은 매월 둘째주 일요일뿐(다른 곳처럼 2주 아님).
+      { id:'bdolympic', name:'분당올림픽스포츠센터', area:'분당구 서현동', url:'https://www.ksponco.or.kr/sports/menu.es?mid=b10204000000', closedWeeks:[2], feature:null,
+        weekdaySlots:[{time:'13:00~14:50',dur:120},{time:'18:00~18:50',dur:60}],
+        saturdaySlots:[{time:'09:00~12:50',dur:240},{time:'14:00~17:50',dur:240}],
+        sundaySlots:[{time:'09:00~12:50',dur:240},{time:'14:00~17:50',dur:240}],
+        weekdayPrice:{adult:6000,teen:5500,child:5000}, weekendPrice:{adult:6000,teen:5500,child:5000}, note:'탈의실 이용시간 2시간 20분 제한' },
     ];
-    const POOL_SHORT = { tanchen:'탄천', seongnam:'성남', hwangse:'황새울', pangyo:'판교', pyengsaeng:'평생', geumgok:'금곡', yc_yatap:'야탑유스', yc_jungwon:'중원유스', yc_pangyo:'판교유스', yc_sujeong:'수정유스' };
+    const POOL_SHORT = { tanchen:'탄천', seongnam:'성남', hwangse:'황새울', pangyo:'판교', pyengsaeng:'평생', geumgok:'금곡', yc_yatap:'야탑유스', yc_jungwon:'중원유스', yc_pangyo:'판교유스', yc_sujeong:'수정유스', bdolympic:'분당올림픽' };
     const DAY_NAMES = ['일','월','화','수','목','금','토'];
 
     const HOLIDAYS = new Set([
@@ -707,7 +715,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       const today=getToday();
       const isToday=selectedDate.getTime()===today.getTime();
       const states=POOLS.map(p=>({pool:p, st:poolState(p,selectedDate,isToday)}));
-      const BASE_ORDER=['tanchen','seongnam','geumgok','hwangse','pangyo','pyengsaeng','yc_yatap','yc_jungwon','yc_pangyo','yc_sujeong'];
+      const BASE_ORDER=['tanchen','seongnam','geumgok','hwangse','pangyo','pyengsaeng','yc_yatap','yc_jungwon','yc_pangyo','yc_sujeong','bdolympic'];
       const orderIdx=id=>BASE_ORDER.indexOf(id);
       const rank={open:0,ended:1,closed:2};
       states.sort((a,b)=>{
@@ -778,6 +786,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
               html+=`<div class="price"><div class="it"><span>${pool.priceNote||'요금 정보 없음'}</span></div></div>`;
             }
           }
+          if(pool.note) html+=`<div class="pool-note">※ ${pool.note}</div>`;
           html+=`<a href="${pool.url}" target="_blank" class="more">자세히 보기 →</a>`;
           det.innerHTML=html;
           row.appendChild(det);
@@ -823,7 +832,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       document.getElementById('calDaySub').textContent = openCount===existingPools.length ? '' : `${openCount}곳 운영 · ${existingPools.length-openCount}곳 휴관`;
       const START=360, PPM=40/60, PAD=12;
       const xOf=m=>PAD+(m-START)*PPM;
-      const order=['tanchen','seongnam','geumgok','hwangse','pangyo','pyengsaeng','yc_yatap','yc_jungwon','yc_pangyo','yc_sujeong'];
+      const order=['tanchen','seongnam','geumgok','hwangse','pangyo','pyengsaeng','yc_yatap','yc_jungwon','yc_pangyo','yc_sujeong','bdolympic'];
       // 바 색상: 2시간(진한 하늘색) / 1시간 30분(중간) / 1시간 이하(연한)
       const barCls=dur=> dur<=60?'sm':(dur<=90?'md':'');
       const rowsHtml=order.map(id=>{
