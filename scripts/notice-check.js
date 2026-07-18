@@ -92,33 +92,49 @@ function ourClosedDays(pool, year, month, HOLIDAYS) {
 // ── 공지 게시판 크롤 ──
 async function fetchText(url, opts = {}, tries = 3) {
   let lastErr;
+  const timeout = opts.timeout || 15000;
   for (let i = 0; i < tries; i++) {
     try {
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; notice-checker/1.0)', ...(opts.headers || {}) },
-        signal: AbortSignal.timeout(15000),
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', ...(opts.headers || {}) },
+        signal: AbortSignal.timeout(timeout),
         ...opts,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (opts.returnRes) return res;
       return await res.text();
     } catch (e) {
-      lastErr = e;
+      // undici는 'fetch failed'만 노출하므로 실제 원인(e.cause)을 함께 남긴다
+      const cause = e.cause ? ` (${e.cause.code || e.cause.message || e.cause})` : '';
+      lastErr = new Error(`${e.message}${cause}`);
       if (i < tries - 1) await new Promise(r => setTimeout(r, 2000 * (i + 1)));
     }
   }
   throw lastErr;
 }
 
+// 게시판 AJAX는 세션 쿠키를 요구할 수 있어, notice{up_id}.do를 먼저 GET해 쿠키를 확보한다.
 async function fetchNoticeList(up_id) {
+  const boardUrl = `https://spo.isdc.co.kr/notice${up_id}.do`;
+  let cookie = '';
+  try {
+    const res = await fetchText(boardUrl, { returnRes: true, timeout: 20000 });
+    const sc = res.headers.get('set-cookie');
+    if (sc) cookie = sc.split(',').map(s => s.split(';')[0].trim()).join('; ');
+  } catch { /* 쿠키 없이도 시도 */ }
+
   const body = new URLSearchParams({
-    searchWord: '', page: '1', perPageNum: '15', brd_flg: '1', up_id,
+    searchWord: '', page: '1', perPageNum: '10', brd_flg: '1', up_id,
   });
   const text = await fetchText('https://spo.isdc.co.kr/selectNoticeList.ajax', {
     method: 'POST',
+    timeout: 40000, // 응답이 1MB+라 넉넉히
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       'X-Requested-With': 'XMLHttpRequest',
-      Referer: `https://spo.isdc.co.kr/notice${up_id}.do`,
+      Referer: boardUrl,
+      Origin: 'https://spo.isdc.co.kr',
+      ...(cookie ? { Cookie: cookie } : {}),
     },
     body,
   });
