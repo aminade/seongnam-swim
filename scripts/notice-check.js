@@ -196,12 +196,15 @@ async function fetchOfficialHolidays(year, month, apiKey) {
 }
 
 async function main() {
-  const now = new Date();
+  // 실행 시각을 KST로 환산(Actions는 UTC). getUTC*로 KST 벽시계를 읽는다.
+  const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const runLabel = `${kst.getUTCMonth() + 1}/${kst.getUTCDate()}(${DOW[kst.getUTCDay()]})`;
   // 대상 월: 25일 이후 실행이면 다음 달(프리뷰), 아니면 이번 달
-  let year = now.getFullYear(), month = now.getMonth() + 1;
-  if (now.getDate() >= 25) { month++; if (month > 12) { month = 1; year++; } }
+  let year = kst.getUTCFullYear(), month = kst.getUTCMonth() + 1;
+  if (kst.getUTCDate() >= 25) { month++; if (month > 12) { month = 1; year++; } }
   const label = `${year}. ${pad(month)}`;
-  console.log(`\n=== 공지·공휴일 점검 (대상 ${label}) ===\n`);
+  console.log(`\n=== 공지·공휴일 점검 (${runLabel} 실행 · 대상 ${label}) ===\n`);
 
   const { POOLS, HOLIDAYS } = loadSiteData();
   const poolById = Object.fromEntries(POOLS.map(p => [p.id, p]));
@@ -276,7 +279,7 @@ async function main() {
   if (holidayMissing) console.log(`⚠️ 우리 데이터 누락 공휴일: ${holidayInfo.missing.map(h => `${h.date} ${h.name}`).join(', ')}`);
 
   writeFileSync('/tmp/notice-check.json', JSON.stringify({
-    target: { year, month, label },
+    target: { year, month, label, runLabel },
     noticeResults, holidayInfo,
     summary: { diffs: diffs.length, noticeErrors: noticeErrors.length, holidayMissing },
   }, null, 2));

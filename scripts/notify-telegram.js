@@ -27,7 +27,8 @@ function buildMessage() {
   const sc = readJson('/tmp/schedule-changes.json');
   const L = [];
   const label = nc?.target?.label || '';
-  L.push(`🏊 ${b(`성남 수영장 점검 — ${label}`)}`);
+  const runLabel = nc?.target?.runLabel || label;
+  L.push(`🏊 ${b(`성남 수영장 점검 — ${runLabel}`)}`);
 
   // ── 프로그램 시간표 변경(기존 크롤) ──
   const changed = sc?.changed || [];
@@ -60,7 +61,6 @@ function buildMessage() {
     L.push('');
     L.push(`📅 ${b(`${label} 공휴일 — 확인 필요`)}`);
     for (const h of hi.official) L.push(`• ${esc(h.date.slice(5))} ${esc(h.name)}`);
-    L.push(i('공지 미게시 시설(도개공·유스센터)의 휴관 반영이 맞는지 확인하세요.'));
     if (hi.missing?.length) {
       L.push('');
       L.push(`🚨 ${b('우리 데이터에 빠진 공휴일')}`);
