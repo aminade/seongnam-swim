@@ -564,7 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {
         weekdayPrice:{adult:3000,teen:2500,child:2000}, weekendPrice:{adult:3600,teen:3000,child:2400} },
       // 평생스포츠센터: 크롤링 페이지에는 공휴일 휴장 표기가 없으나, 전화 확인(2026-07-18) 결과 '모든 공휴일 휴관'.
       //   → closedOnHoliday:'all' 은 전화로 직접 확인한 값이므로, 월별 업데이트 시 크롤링 데이터('lunar')로 되돌리지 말 것. 공휴일 휴관 우선.
-      { id:'pyengsaeng', name:'평생스포츠센터', area:'중원구 상대원동', url:'https://spo.isdc.co.kr/spo_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'all', holidayVerified:'전화 확인(2026-07-18): 모든 공휴일 휴관', feature:null,
+      { id:'pyengsaeng', name:'평생스포츠센터', area:'중원구 상대원동', url:'https://spo.isdc.co.kr/spo_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'all', holidayVerified:'전화 확인(2026-07-18): 모든 공휴일 휴관', extraClosedRanges:[['2026-09-01','2026-09-30']], /* 임시휴장: 7/18 공지 첨부(9월 한 달 전체 휴장) */ feature:null,
         weekdaySlots:[{time:'16:00~17:50',dur:120}],
         saturdaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
@@ -642,10 +642,14 @@ function isWeekendOrHoliday(date){ const d=date.getDay(); return d===0||d===6||i
 function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,m,d); if(dt.getMonth()!==m) break; if(dt.getDay()===0){ c++; if(c===n) return d; } } return -1; }
     function dateStr(date){ return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
     function poolExistsOn(pool,date){ return !pool.startsOn || dateStr(date) >= pool.startsOn; } // 아직 개장 전(시범운영 시작 전)이면 '휴관'이 아니라 '존재하지 않음'
+    // 임시휴장(공지 확인 후 수동 추가): 단일 날짜(extraClosedDates) 또는 기간(extraClosedRanges: [[시작,끝]])
+    function isExtraClosed(pool,date){ const ds=dateStr(date);
+      return !!((pool.extraClosedDates && pool.extraClosedDates.includes(ds)) ||
+                (pool.extraClosedRanges && pool.extraClosedRanges.some(r=> ds>=r[0] && ds<=r[1]))); }
     function isClosedDay(pool,date){
       // 'all'=모든 법정공휴일 휴관(유스센터), 'lunar'=설·추석 연휴만 휴장(공사)
       if(!poolExistsOn(pool,date)) return true; // 개장 전 — 시간표 표시상으로는 휴관과 동일 취급
-      if(pool.extraClosedDates && pool.extraClosedDates.includes(dateStr(date))) return true; // 임시휴장(공지 확인 후 수동 추가)
+      if(isExtraClosed(pool,date)) return true; // 임시휴장
       if(pool.closedOnHoliday==='all' && isHoliday(date)) return true;
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return true;
       if(date.getDay()!==0) return false;
@@ -655,7 +659,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
     // full=true면 정기휴관에 주차 정보를 붙임(공간이 넉넉한 일별 뷰용).
     function closedReason(pool,date,full){
       if(!poolExistsOn(pool,date)) return `${pool.startsOn.split('-').slice(1).map(Number).join('.')}부터 시범운영 예정`;
-      if(pool.extraClosedDates && pool.extraClosedDates.includes(dateStr(date))) return '임시휴장';
+      if(isExtraClosed(pool,date)) return '임시휴장';
       if(pool.closedOnHoliday==='all' && isHoliday(date)) return '공휴일 휴관';
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return '설·추석 연휴 휴장';
       return full ? `매월 ${pool.closedWeeks.join('·')}번째 일요일 정기휴관` : '정기휴관';

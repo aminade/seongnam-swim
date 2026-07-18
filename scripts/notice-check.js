@@ -86,6 +86,14 @@ function ourClosedDays(pool, year, month, HOLIDAYS) {
       if (y === year && m === month) out[d] = out[d] || '공휴일 휴관';
     }
   }
+  // 임시휴장(수동 반영된 extraClosedDates / extraClosedRanges)
+  const daysInMonth = new Date(year, month, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${year}-${pad(month)}-${pad(d)}`;
+    const inDates = pool.extraClosedDates && pool.extraClosedDates.includes(ds);
+    const inRange = pool.extraClosedRanges && pool.extraClosedRanges.some(r => ds >= r[0] && ds <= r[1]);
+    if (inDates || inRange) out[d] = out[d] || '임시휴장';
+  }
   return out;
 }
 
@@ -157,7 +165,9 @@ function findRecentTempClosures(rows, np) {
   const out = [];
   for (const r of rows) {
     const title = (r.sbjt || '').replace(/\s+/g, ' ').trim();
-    if (!/임시\s*휴[장관]/.test(title)) continue;
+    // 제목에 '휴장/휴관'이 들어간 모든 공지 감지(임시휴장·다목적체육관 휴장 등).
+    // 단, 매월 정기 "운영프로그램 및 휴장일 안내"는 별도 파싱하므로 제외.
+    if (/운영프로그램\s*및\s*휴장일\s*안내/.test(title) || !/휴[장관]/.test(title)) continue;
     const m = (r.enter_dt || '').match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
     if (!m) continue;
     const postedMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]); // KST→epoch
