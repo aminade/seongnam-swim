@@ -55,7 +55,7 @@ function buildMessage() {
     }
   }
 
-  // ── 임시휴장 공지 (첨부 HWP라 날짜 자동추출 불가 → "떴음"만 알림) ──
+  // ── 임시휴장 공지 (즉시 · 첨부 HWP라 날짜 자동추출 불가 → "떴음"만 알림) ──
   const temps = nc?.tempClosures || [];
   if (temps.length) {
     L.push('');
@@ -65,6 +65,18 @@ function buildMessage() {
       L.push(`   ↳ 날짜는 첨부에 있음: <a href="${esc(t.url)}">공지 보기</a>${t.file ? ` · ${esc(t.file)}` : ''}`);
     }
     L.push(i('날짜 확인 후 알려주시면 사이트에 반영합니다.'));
+  }
+
+  // ── 25일 묶음: 이미지/HWP 시설 다음 달 휴장 공지 (한 번에 확인) ──
+  const batch = nc?.monthlyBatch || [];
+  if (batch.length) {
+    L.push('');
+    L.push(`📌 ${b(`${label} 휴장 공지 확인 필요`)}`);
+    for (const m of batch) {
+      if (m.missing) L.push(`• ${b(m.pool)}: 아직 미게시 — <a href="${esc(m.url)}">게시판</a>`);
+      else L.push(`• ${b(m.pool)}: <a href="${esc(m.url)}">공지 보기</a>${m.file ? ` · ${esc(m.file)}` : ''}`);
+    }
+    L.push(i('이미지/HWP라 자동 파싱 불가 — 열어 확인 후 알려주시면 반영합니다.'));
   }
 
   const isMonthly = !!nc?.target?.isFirstOfMonth;
@@ -84,7 +96,7 @@ function buildMessage() {
   }
 
   const errs = [...(sc?.errors || []), ...(sc?.youthErrors || []), ...(nc?.noticeResults || []).filter(r => r.status === 'error')];
-  const anyAlert = !!(changed.length || youthChanged.length || diffs.length || temps.length || hi?.missing?.length || errs.length);
+  const anyAlert = !!(changed.length || youthChanged.length || diffs.length || temps.length || batch.length || hi?.missing?.length || errs.length);
 
   // ── 이상 없음 (월초 다이제스트에서만 표기; 알림만 모드에선 애초에 발송 안 함) ──
   if (isMonthly && !anyAlert) { L.push(''); L.push('✅ 시간표·공지 이상 없음'); }

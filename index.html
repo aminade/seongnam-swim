@@ -236,6 +236,10 @@
 .cal-cell2.sel .disc.mix { background: linear-gradient(135deg, var(--green) 0 50%, var(--sun) 50% 100%); box-shadow: none; }
 .cal-cell2.sel .disc .n { color: #fff; font-weight: 700; }
 
+/* 미운영 배너 (달력 아래) */
+.cal-notop { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.cal-notop .notop-item { font-size: 12.5px; color: var(--sun); background: var(--sun-soft); border-radius: 8px; padding: 8px 12px; }
+.cal-notop .notop-item b { font-weight: 700; }
 /* selected-day timeline */
 .cal-day-head { display: flex; align-items: baseline; gap: 9px; padding: 20px 2px 8px; margin-top: 12px; border-top: 1px solid var(--line); }
 .cal-day-head .d { font-family: var(--serif); font-weight: 700; font-size: 17px; letter-spacing: -.3px; }
@@ -396,6 +400,7 @@
         <div class="cal-dow">월</div><div class="cal-dow">화</div><div class="cal-dow">수</div><div class="cal-dow">목</div><div class="cal-dow">금</div><div class="cal-dow sat">토</div><div class="cal-dow sun">일</div>
       </div>
       <div class="cal-body" id="calBody"></div>
+      <div class="cal-notop" id="calNotop" style="display:none"></div>
       <div class="cal-day-head"><span class="d" id="calDayLabel"></span><span class="sub" id="calDaySub"></span></div>
       <div class="tl-scroller"><div class="tl" id="calTl"></div></div>
       <div class="tl-legend"><span><span class="sw"></span>2시간 이상</span><span><span class="sw md"></span>1시간 30분</span><span><span class="sw sm"></span>1시간</span></div>
@@ -564,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function() {
         weekdayPrice:{adult:3000,teen:2500,child:2000}, weekendPrice:{adult:3600,teen:3000,child:2400} },
       // 평생스포츠센터: 크롤링 페이지에는 공휴일 휴장 표기가 없으나, 전화 확인(2026-07-18) 결과 '모든 공휴일 휴관'.
       //   → closedOnHoliday:'all' 은 전화로 직접 확인한 값이므로, 월별 업데이트 시 크롤링 데이터('lunar')로 되돌리지 말 것. 공휴일 휴관 우선.
-      { id:'pyengsaeng', name:'평생스포츠센터', area:'중원구 상대원동', url:'https://spo.isdc.co.kr/spo_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'all', holidayVerified:'전화 확인(2026-07-18): 모든 공휴일 휴관', extraClosedRanges:[['2026-09-01','2026-09-30']], /* 임시휴장: 7/18 공지 첨부(9월 한 달 전체 휴장) */ feature:null,
+      { id:'pyengsaeng', name:'평생스포츠센터', area:'중원구 상대원동', url:'https://spo.isdc.co.kr/spo_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'all', holidayVerified:'전화 확인(2026-07-18): 모든 공휴일 휴관', notOperating:[{from:'2026-09-01',to:'2026-09-30',label:'9/1-9/30 임시 휴장'}], /* 미운영: 7/18 공지 첨부(9월 한 달 전체 휴장) */ feature:null,
         weekdaySlots:[{time:'16:00~17:50',dur:120}],
         saturdaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
@@ -646,9 +651,18 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
     function isExtraClosed(pool,date){ const ds=dateStr(date);
       return !!((pool.extraClosedDates && pool.extraClosedDates.includes(ds)) ||
                 (pool.extraClosedRanges && pool.extraClosedRanges.some(r=> ds>=r[0] && ds<=r[1]))); }
+    // 미운영(장기 휴장): 달력 disc 색 계산에서 제외(그 날 미운영만 닫혀 있으면 녹색). notOperating:[{from,to,label?}]
+    function isNotOperating(pool,date){ const ds=dateStr(date);
+      return !!(pool.notOperating && pool.notOperating.some(r=> ds>=r.from && ds<=r.to)); }
+    function notOperatingLabel(pool,date){ const ds=dateStr(date);
+      const r = pool.notOperating && pool.notOperating.find(x=> ds>=x.from && ds<=x.to);
+      if(!r) return null;
+      const md=s=>{ const p=s.split('-'); return `${+p[1]}/${+p[2]}`; };
+      return r.label || `${md(r.from)}-${md(r.to)} 임시 휴장`; }
     function isClosedDay(pool,date){
       // 'all'=모든 법정공휴일 휴관(유스센터), 'lunar'=설·추석 연휴만 휴장(공사)
       if(!poolExistsOn(pool,date)) return true; // 개장 전 — 시간표 표시상으로는 휴관과 동일 취급
+      if(isNotOperating(pool,date)) return true; // 미운영(장기 휴장)
       if(isExtraClosed(pool,date)) return true; // 임시휴장
       if(pool.closedOnHoliday==='all' && isHoliday(date)) return true;
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return true;
@@ -659,6 +673,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
     // full=true면 정기휴관에 주차 정보를 붙임(공간이 넉넉한 일별 뷰용).
     function closedReason(pool,date,full){
       if(!poolExistsOn(pool,date)) return `${pool.startsOn.split('-').slice(1).map(Number).join('.')}부터 시범운영 예정`;
+      if(isNotOperating(pool,date)) return notOperatingLabel(pool,date);
       if(isExtraClosed(pool,date)) return '임시휴장';
       if(pool.closedOnHoliday==='all' && isHoliday(date)) return '공휴일 휴관';
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return '설·추석 연휴 휴장';
@@ -760,7 +775,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
             ? `<div class="lb">현재 운영중</div><div class="vl run">${st.range}</div>`
             : `<div class="lb">다음 타임</div><div class="vl">${st.next}</div>`;
         } else if(isEnded){ rightHtml=`<div class="st">오늘 종료</div>`; }
-        else { rightHtml=`<div class="st closed">${poolExistsOn(pool,selectedDate)?'휴관':'미운영'}</div>`; }
+        else { const notOp = !poolExistsOn(pool,selectedDate) || isNotOperating(pool,selectedDate); rightHtml=`<div class="st closed">${notOp?'미운영':'휴관'}</div>`; }
 
         const dotCls = isOpen?'open':(isEnded?'ended':'closed');
 
@@ -826,9 +841,10 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       for(let i=0;i<off;i++) html+=`<div class="cal-cell2 cal-empty"></div>`;
       for(let d=1;d<=last.getDate();d++){
         const date=new Date(calYear,calMonth,d);
-        const existingPools=POOLS.filter(p=>poolExistsOn(p,date)); // 개장 전 시설은 '휴관'이 아니라 아예 집계에서 제외
-        const closedCount=existingPools.filter(p=>isClosedDay(p,date)).length;
-        const cls=closedCount===0?'open':(closedCount===existingPools.length?'clo':'mix');
+        // 개장 전 시설·미운영 시설은 disc 색 계산에서 제외(미운영만 닫힌 날은 녹색으로 표시)
+        const discPools=POOLS.filter(p=>poolExistsOn(p,date) && !isNotOperating(p,date));
+        const closedCount=discPools.filter(p=>isClosedDay(p,date)).length;
+        const cls=closedCount===0?'open':(closedCount===discPools.length?'clo':'mix');
         const isT=date.getTime()===today.getTime();
         const sel=selectedCalDate && date.getTime()===selectedCalDate.getTime();
         html+=`<div class="cal-cell2${isT?' today':''}${sel?' sel':''}" data-d="${d}"><span class="disc ${cls}"><span class="n">${d}</span></span></div>`;
@@ -837,6 +853,16 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       body.querySelectorAll('.cal-cell2[data-d]').forEach(c=>{
         c.addEventListener('click',()=>{ selectedCalDate=new Date(calYear,calMonth,parseInt(c.dataset.d,10)); buildCalendar(); });
       });
+      // 미운영 배너: 표시 중인 달과 겹치는 미운영 기간을 달력 아래에 안내
+      const mStart=`${calYear}-${String(calMonth+1).padStart(2,'0')}-01`, mEnd=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`;
+      const notop=POOLS.filter(p=>p.notOperating && p.notOperating.some(r=> r.from<=mEnd && r.to>=mStart));
+      const nb=document.getElementById('calNotop');
+      if(notop.length){
+        nb.innerHTML=notop.map(p=>{ const r=p.notOperating.find(r=> r.from<=mEnd && r.to>=mStart);
+          const md=s=>{ const q=s.split('-'); return `${+q[1]}/${+q[2]}`; };
+          return `<div class="notop-item">🚫 <b>${p.name}</b> : ${r.label || `${md(r.from)}-${md(r.to)} 임시 휴장`}</div>`; }).join('');
+        nb.style.display='';
+      } else { nb.style.display='none'; nb.innerHTML=''; }
       renderCalTimeline(selectedCalDate);
     }
 

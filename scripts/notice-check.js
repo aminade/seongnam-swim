@@ -22,9 +22,10 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 const INDEX = join(__dir, '..', 'index.html');
 
 // ── 공지 게시판이 있는 시설 (성남도개공). up_id는 notice0N.do 규칙과 동일 ──
-// 평생만 매월 "휴장일 안내"를 규칙적으로 올린다. 나머지는 올리면 비교, 없으면 변경 없음.
+// auto=본문 텍스트라 매일 자동 파싱·비교(평생). 나머지는 휴장정보를 이미지/HWP로 올려
+// 자동추출 불가 → 매월 25일에 "다음 달 휴장 공지 확인 필요"로 묶어서 링크만 안내.
 const NOTICE_POOLS = [
-  { id: 'pyengsaeng', name: '평생스포츠센터',       up_id: '05' },
+  { id: 'pyengsaeng', name: '평생스포츠센터',       up_id: '05', auto: true },
   { id: 'tanchen',    name: '탄천종합운동장',       up_id: '03' },
   { id: 'seongnam',   name: '성남종합운동장',       up_id: '02' },
   { id: 'hwangse',    name: '황새울국민체육센터',   up_id: '01' },
@@ -86,13 +87,15 @@ function ourClosedDays(pool, year, month, HOLIDAYS) {
       if (y === year && m === month) out[d] = out[d] || '공휴일 휴관';
     }
   }
-  // 임시휴장(수동 반영된 extraClosedDates / extraClosedRanges)
+  // 임시휴장(extraClosedDates/Ranges) · 미운영(notOperating) 수동 반영분
   const daysInMonth = new Date(year, month, 0).getDate();
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = `${year}-${pad(month)}-${pad(d)}`;
     const inDates = pool.extraClosedDates && pool.extraClosedDates.includes(ds);
     const inRange = pool.extraClosedRanges && pool.extraClosedRanges.some(r => ds >= r[0] && ds <= r[1]);
+    const inNotOp = pool.notOperating && pool.notOperating.some(r => ds >= r.from && ds <= r.to);
     if (inDates || inRange) out[d] = out[d] || '임시휴장';
+    else if (inNotOp) out[d] = out[d] || '미운영';
   }
   return out;
 }
@@ -165,9 +168,9 @@ function findRecentTempClosures(rows, np) {
   const out = [];
   for (const r of rows) {
     const title = (r.sbjt || '').replace(/\s+/g, ' ').trim();
-    // 제목에 '휴장/휴관'이 들어간 모든 공지 감지(임시휴장·다목적체육관 휴장 등).
-    // 단, 매월 정기 "운영프로그램 및 휴장일 안내"는 별도 파싱하므로 제외.
-    if (/운영프로그램\s*및\s*휴장일\s*안내/.test(title) || !/휴[장관]/.test(title)) continue;
+    // 즉시 알림 대상: 제목이 '임시휴장/임시휴관'으로 보이는 공지(수시 발생, 긴급도 높음).
+    // 정기 월간 공지는 여기서 제외 → 매월 25일 묶음 알림으로 처리.
+    if (!/임시\s*휴[장관]/.test(title)) continue;
     const m = (r.enter_dt || '').match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
     if (!m) continue;
     const postedMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]); // KST→epoch
@@ -182,6 +185,15 @@ function findRecentTempClosures(rows, np) {
     }
   }
   return out;
+}
+
+// 이미지/HWP 시설용: target월 관련 월간 휴장/이용 공지를 느슨하게 매칭(수영장마다 제목 형식이 다름)
+function findLooseMonthlyNotice(rows, month) {
+  const monTag = new RegExp(`(^|[^\\d])${month}\\s*월`);
+  return rows.find(r => {
+    const t = (r.sbjt || '').replace(/\s+/g, ' ');
+    return monTag.test(t) && /(휴장|일일자유이용|자유이용|휴일|운영프로그램)/.test(t);
+  }) || null;
 }
 
 // 본문에서 "■ N월 휴장일 안내" 블록 → {day: 사유}
@@ -240,46 +252,52 @@ async function main() {
   let year = kst.getUTCFullYear(), month = kst.getUTCMonth() + 1;
   if (kst.getUTCDate() >= 25) { month++; if (month > 12) { month = 1; year++; } }
   const label = `${year}. ${pad(month)}`;
+  const is25 = kst.getUTCDate() === 25; // 이미지/HWP 시설 다음 달 휴장 공지 묶음 알림일
   console.log(`\n=== 공지·공휴일 점검 (${runLabel} 실행 · 대상 ${label}) ===\n`);
 
   const { POOLS, HOLIDAYS } = loadSiteData();
   const poolById = Object.fromEntries(POOLS.map(p => [p.id, p]));
 
-  // ── 1) 공지 비교 + 임시휴장 감지 ──
+  // ── 1) 공지: 평생(자동 비교) + 임시휴장(즉시) + 25일 묶음(이미지/HWP 시설) ──
   const noticeResults = [];
   const tempClosures = [];
+  const monthlyBatch = []; // 매월 25일: 이미지/HWP 시설 다음 달 휴장 공지(수동 확인)
   for (const np of NOTICE_POOLS) {
     const pool = poolById[np.id];
     if (!pool) continue;
     process.stdout.write(`${np.name} 공지 확인... `);
     try {
       const rows = await fetchNoticeList(np.up_id);
-      tempClosures.push(...findRecentTempClosures(rows, np)); // 최근 임시휴장 공지
-      const notice = findMonthlyNotice(rows, month);
-      if (!notice) {
-        console.log('월 공지 없음 → 기존 시간표대로 (변경 없음)');
-        noticeResults.push({ id: np.id, pool: np.name, status: 'no-notice' });
-        continue;
-      }
-      const noticeDays = parseNoticeClosures(notice.content || '', month);
-      if (!noticeDays) {
-        console.log('휴장일 블록 파싱 실패 → 수동 확인');
-        noticeResults.push({ id: np.id, pool: np.name, status: 'parse-fail', noticeTitle: notice.sbjt });
-        continue;
-      }
-      const ourDays = ourClosedDays(pool, year, month, HOLIDAYS);
-      const { onlyNotice, onlyOurs } = diffClosures(noticeDays, ourDays);
-      if (onlyNotice.length === 0 && onlyOurs.length === 0) {
-        console.log('일치 ✓');
-        noticeResults.push({ id: np.id, pool: np.name, status: 'ok' });
+      tempClosures.push(...findRecentTempClosures(rows, np)); // 임시휴장(즉시 알림)
+
+      if (np.auto) {
+        // 본문 텍스트 자동 파싱·비교 (평생)
+        const notice = findMonthlyNotice(rows, month);
+        if (!notice) { console.log('월 공지 없음 → 변경 없음'); noticeResults.push({ id: np.id, pool: np.name, status: 'no-notice' }); continue; }
+        const noticeDays = parseNoticeClosures(notice.content || '', month);
+        if (!noticeDays) { console.log('휴장일 블록 파싱 실패 → 수동'); noticeResults.push({ id: np.id, pool: np.name, status: 'parse-fail', noticeTitle: notice.sbjt }); continue; }
+        const ourDays = ourClosedDays(pool, year, month, HOLIDAYS);
+        const { onlyNotice, onlyOurs } = diffClosures(noticeDays, ourDays);
+        if (!onlyNotice.length && !onlyOurs.length) { console.log('일치 ✓'); noticeResults.push({ id: np.id, pool: np.name, status: 'ok' }); }
+        else {
+          console.log('⚠️ 차이 감지');
+          noticeResults.push({ id: np.id, pool: np.name, status: 'diff', noticeTitle: notice.sbjt,
+            onlyNotice: onlyNotice.map(d => ({ day: d, reason: noticeDays[d] })),
+            onlyOurs: onlyOurs.map(d => ({ day: d, reason: ourDays[d] })) });
+        }
+      } else if (is25) {
+        // 이미지/HWP 시설: 25일에 다음 달 공지 링크만 묶음 안내(수동 확인)
+        const notice = findLooseMonthlyNotice(rows, month);
+        if (notice) {
+          console.log(`25일 묶음: ${label} 공지 발견 → 확인 필요`);
+          monthlyBatch.push({ id: np.id, pool: np.name, title: (notice.sbjt || '').trim(),
+            file: notice.file_a || notice.file_b || null, url: `https://spo.isdc.co.kr/notice${np.up_id}.do` });
+        } else {
+          console.log(`25일 묶음: ${label} 공지 아직 없음`);
+          monthlyBatch.push({ id: np.id, pool: np.name, missing: true, url: `https://spo.isdc.co.kr/notice${np.up_id}.do` });
+        }
       } else {
-        console.log('⚠️ 차이 감지');
-        noticeResults.push({
-          id: np.id, pool: np.name, status: 'diff',
-          noticeTitle: notice.sbjt,
-          onlyNotice: onlyNotice.map(d => ({ day: d, reason: noticeDays[d] })),
-          onlyOurs: onlyOurs.map(d => ({ day: d, reason: ourDays[d] })),
-        });
+        console.log('(자동파싱 대상 아님 · 25일 아님 → 생략)');
       }
     } catch (e) {
       console.log(`오류: ${e.message}`);
@@ -309,18 +327,19 @@ async function main() {
   const diffs = noticeResults.filter(r => r.status === 'diff');
   const noticeErrors = noticeResults.filter(r => r.status === 'error' || r.status === 'parse-fail');
   const holidayMissing = holidayInfo?.missing?.length || 0;
-  const alert = diffs.length > 0 || holidayMissing > 0 || tempClosures.length > 0;
+  const alert = diffs.length > 0 || holidayMissing > 0 || tempClosures.length > 0 || monthlyBatch.length > 0;
 
   console.log('\n=== 요약 ===');
-  console.log(`공지 차이: ${diffs.length}건 / 임시휴장 공지: ${tempClosures.length}건 / 공지 오류·미파싱: ${noticeErrors.length}건`);
+  console.log(`공지 차이: ${diffs.length}건 / 임시휴장(즉시): ${tempClosures.length}건 / 25일 묶음: ${monthlyBatch.length}건 / 오류·미파싱: ${noticeErrors.length}건`);
   if (tempClosures.length) tempClosures.forEach(t => console.log(`  🆕 임시휴장 공지: ${t.pool} (${t.postedAt}) — 첨부 확인: ${t.file || t.url}`));
+  if (monthlyBatch.length) monthlyBatch.forEach(m => console.log(`  📌 ${label} 휴장 공지: ${m.pool} — ${m.missing ? '아직 없음' : (m.title || '확인 필요')} (${m.url})`));
   if (holidayInfo?.official) console.log(`${label} 공휴일: ${holidayInfo.official.map(h => `${h.date.slice(5)} ${h.name}`).join(', ') || '없음'}`);
   if (holidayMissing) console.log(`⚠️ 우리 데이터 누락 공휴일: ${holidayInfo.missing.map(h => `${h.date} ${h.name}`).join(', ')}`);
 
   writeFileSync('/tmp/notice-check.json', JSON.stringify({
-    target: { year, month, label, runLabel, isFirstOfMonth: kst.getUTCDate() === 1 },
-    noticeResults, tempClosures, holidayInfo,
-    summary: { diffs: diffs.length, temp: tempClosures.length, noticeErrors: noticeErrors.length, holidayMissing },
+    target: { year, month, label, runLabel, isFirstOfMonth: kst.getUTCDate() === 1, is25 },
+    noticeResults, tempClosures, monthlyBatch, holidayInfo,
+    summary: { diffs: diffs.length, temp: tempClosures.length, monthlyBatch: monthlyBatch.length, noticeErrors: noticeErrors.length, holidayMissing },
   }, null, 2));
 
   process.exit(alert ? 2 : noticeErrors.length ? 1 : 0);
