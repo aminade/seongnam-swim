@@ -562,7 +562,9 @@ document.addEventListener('DOMContentLoaded', function() {
         saturdaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         weekdayPrice:{adult:3000,teen:2500,child:2000}, weekendPrice:{adult:3600,teen:3000,child:2400} },
-      { id:'pyengsaeng', name:'평생스포츠센터', area:'중원구 상대원동', url:'https://spo.isdc.co.kr/spo_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', feature:null,
+      // 평생스포츠센터: 크롤링 페이지에는 공휴일 휴장 표기가 없으나, 전화 확인(2026-07-18) 결과 '모든 공휴일 휴관'.
+      //   → closedOnHoliday:'all' 은 전화로 직접 확인한 값이므로, 월별 업데이트 시 크롤링 데이터('lunar')로 되돌리지 말 것. 공휴일 휴관 우선.
+      { id:'pyengsaeng', name:'평생스포츠센터', area:'중원구 상대원동', url:'https://spo.isdc.co.kr/spo_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'all', holidayVerified:'전화 확인(2026-07-18): 모든 공휴일 휴관', feature:null,
         weekdaySlots:[{time:'16:00~17:50',dur:120}],
         saturdaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
