@@ -55,31 +55,43 @@ function buildMessage() {
     }
   }
 
-  // ── 공휴일 리마인더 ──
+  // ── 임시휴장 공지 (첨부 HWP라 날짜 자동추출 불가 → "떴음"만 알림) ──
+  const temps = nc?.tempClosures || [];
+  if (temps.length) {
+    L.push('');
+    L.push(`🆕 ${b('임시휴장 공지 떴음 — 첨부 확인 필요')}`);
+    for (const t of temps) {
+      L.push(`• ${b(t.pool)} (${esc(t.postedAt)})`);
+      L.push(`   ↳ 날짜는 첨부에 있음: <a href="${esc(t.url)}">공지 보기</a>${t.file ? ` · ${esc(t.file)}` : ''}`);
+    }
+    L.push(i('날짜 확인 후 알려주시면 사이트에 반영합니다.'));
+  }
+
+  const isMonthly = !!nc?.target?.isFirstOfMonth;
   const hi = nc?.holidayInfo;
-  if (hi?.official?.length) {
+
+  // ── 이 달 공휴일 리마인더 (월초 다이제스트에만) ──
+  if (isMonthly && hi?.official?.length) {
     L.push('');
     L.push(`📅 ${b(`${label} 공휴일 — 확인 필요`)}`);
     for (const h of hi.official) L.push(`• ${esc(h.date.slice(5))} ${esc(h.name)}`);
-    if (hi.missing?.length) {
-      L.push('');
-      L.push(`🚨 ${b('우리 데이터에 빠진 공휴일')}`);
-      for (const h of hi.missing) L.push(`• ${esc(h.date)} ${esc(h.name)} ← HOLIDAYS 추가 필요`);
-    }
   }
-
-  // ── 이상 없음 ──
-  const anyAlert = changed.length || youthChanged.length || diffs.length || (hi?.missing?.length);
-  if (!anyAlert) {
+  // ── 우리 데이터 누락 공휴일 (오류 알림 — 항상) ──
+  if (hi?.missing?.length) {
     L.push('');
-    L.push('✅ 시간표·공지 이상 없음');
+    L.push(`🚨 ${b('우리 데이터에 빠진 공휴일')}`);
+    for (const h of hi.missing) L.push(`• ${esc(h.date)} ${esc(h.name)} ← HOLIDAYS 추가 필요`);
   }
 
-  // 크롤 오류
   const errs = [...(sc?.errors || []), ...(sc?.youthErrors || []), ...(nc?.noticeResults || []).filter(r => r.status === 'error')];
+  const anyAlert = !!(changed.length || youthChanged.length || diffs.length || temps.length || hi?.missing?.length || errs.length);
+
+  // ── 이상 없음 (월초 다이제스트에서만 표기; 알림만 모드에선 애초에 발송 안 함) ──
+  if (isMonthly && !anyAlert) { L.push(''); L.push('✅ 시간표·공지 이상 없음'); }
+
   if (errs.length) { L.push(''); L.push(`⚠️ 크롤 실패: ${esc(errs.map(e => e.pool).join(', '))}`); }
 
-  return { lines: L, changed };
+  return { lines: L, changed, anyAlert, isMonthly };
 }
 
 async function send(text, replyMarkup) {
@@ -100,7 +112,10 @@ async function send(text, replyMarkup) {
 async function main() {
   const issue = process.argv[2];                 // GitHub 이슈 번호(자동반영 후보 있을 때만)
   const repo = process.env.GITHUB_REPOSITORY;    // "owner/repo" (Actions에서 주입)
-  const { lines, changed } = buildMessage();
+  const { lines, changed, anyAlert, isMonthly } = buildMessage();
+
+  // 알림만 모드: 월초(1일) 다이제스트가 아니고 알릴 것도 없으면 발송 생략(매일 실행 스팸 방지)
+  if (!isMonthly && !anyAlert) { console.log('알림 없음(비월초) — 발송 건너뜀'); return; }
 
   // 자동반영 가능한 항목이 있으면: 범위를 분명히 표시 + GitHub 이슈 링크로 /confirm 유도 (A안)
   if (issue && changed.length > 0) {

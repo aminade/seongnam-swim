@@ -148,6 +148,32 @@ function findMonthlyNotice(rows, month) {
   return rows.find(r => re.test((r.sbjt || '').replace(/\s+/g, ' '))) || null;
 }
 
+// 최근 WINDOW 시간 내 올라온 임시휴장 공지 감지.
+// 휴장 날짜는 HWP 첨부에 있어 자동추출 불가 → "공지가 떴다"만 알리고 첨부는 사람이 확인.
+// 매일 실행 기준 25h 창(중복/누락 최소). enter_dt는 KST 벽시계.
+function findRecentTempClosures(rows, np) {
+  const WINDOW = 25 * 3600 * 1000;
+  const now = Date.now();
+  const out = [];
+  for (const r of rows) {
+    const title = (r.sbjt || '').replace(/\s+/g, ' ').trim();
+    if (!/임시\s*휴[장관]/.test(title)) continue;
+    const m = (r.enter_dt || '').match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    if (!m) continue;
+    const postedMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]); // KST→epoch
+    const age = now - postedMs;
+    if (age >= 0 && age <= WINDOW) {
+      out.push({
+        id: np.id, pool: np.name, title,
+        postedAt: r.enter_dt.slice(0, 16),
+        file: r.file_a || r.file_b || null,
+        url: `https://spo.isdc.co.kr/notice${np.up_id}.do`,
+      });
+    }
+  }
+  return out;
+}
+
 // 본문에서 "■ N월 휴장일 안내" 블록 → {day: 사유}
 function parseNoticeClosures(contentHtml, month) {
   let txt = contentHtml.replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&middot;|&#183;/g, ' ').replace(/\s+/g, ' ');
@@ -209,14 +235,16 @@ async function main() {
   const { POOLS, HOLIDAYS } = loadSiteData();
   const poolById = Object.fromEntries(POOLS.map(p => [p.id, p]));
 
-  // ── 1) 공지 비교 ──
+  // ── 1) 공지 비교 + 임시휴장 감지 ──
   const noticeResults = [];
+  const tempClosures = [];
   for (const np of NOTICE_POOLS) {
     const pool = poolById[np.id];
     if (!pool) continue;
     process.stdout.write(`${np.name} 공지 확인... `);
     try {
       const rows = await fetchNoticeList(np.up_id);
+      tempClosures.push(...findRecentTempClosures(rows, np)); // 최근 임시휴장 공지
       const notice = findMonthlyNotice(rows, month);
       if (!notice) {
         console.log('월 공지 없음 → 기존 시간표대로 (변경 없음)');
@@ -271,17 +299,18 @@ async function main() {
   const diffs = noticeResults.filter(r => r.status === 'diff');
   const noticeErrors = noticeResults.filter(r => r.status === 'error' || r.status === 'parse-fail');
   const holidayMissing = holidayInfo?.missing?.length || 0;
-  const alert = diffs.length > 0 || holidayMissing > 0;
+  const alert = diffs.length > 0 || holidayMissing > 0 || tempClosures.length > 0;
 
   console.log('\n=== 요약 ===');
-  console.log(`공지 차이: ${diffs.length}건 / 공지 오류·미파싱: ${noticeErrors.length}건`);
+  console.log(`공지 차이: ${diffs.length}건 / 임시휴장 공지: ${tempClosures.length}건 / 공지 오류·미파싱: ${noticeErrors.length}건`);
+  if (tempClosures.length) tempClosures.forEach(t => console.log(`  🆕 임시휴장 공지: ${t.pool} (${t.postedAt}) — 첨부 확인: ${t.file || t.url}`));
   if (holidayInfo?.official) console.log(`${label} 공휴일: ${holidayInfo.official.map(h => `${h.date.slice(5)} ${h.name}`).join(', ') || '없음'}`);
   if (holidayMissing) console.log(`⚠️ 우리 데이터 누락 공휴일: ${holidayInfo.missing.map(h => `${h.date} ${h.name}`).join(', ')}`);
 
   writeFileSync('/tmp/notice-check.json', JSON.stringify({
-    target: { year, month, label, runLabel },
-    noticeResults, holidayInfo,
-    summary: { diffs: diffs.length, noticeErrors: noticeErrors.length, holidayMissing },
+    target: { year, month, label, runLabel, isFirstOfMonth: kst.getUTCDate() === 1 },
+    noticeResults, tempClosures, holidayInfo,
+    summary: { diffs: diffs.length, temp: tempClosures.length, noticeErrors: noticeErrors.length, holidayMissing },
   }, null, 2));
 
   process.exit(alert ? 2 : noticeErrors.length ? 1 : 0);

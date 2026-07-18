@@ -645,6 +645,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
     function isClosedDay(pool,date){
       // 'all'=모든 법정공휴일 휴관(유스센터), 'lunar'=설·추석 연휴만 휴장(공사)
       if(!poolExistsOn(pool,date)) return true; // 개장 전 — 시간표 표시상으로는 휴관과 동일 취급
+      if(pool.extraClosedDates && pool.extraClosedDates.includes(dateStr(date))) return true; // 임시휴장(공지 확인 후 수동 추가)
       if(pool.closedOnHoliday==='all' && isHoliday(date)) return true;
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return true;
       if(date.getDay()!==0) return false;
@@ -654,6 +655,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
     // full=true면 정기휴관에 주차 정보를 붙임(공간이 넉넉한 일별 뷰용).
     function closedReason(pool,date,full){
       if(!poolExistsOn(pool,date)) return `${pool.startsOn.split('-').slice(1).map(Number).join('.')}부터 시범운영 예정`;
+      if(pool.extraClosedDates && pool.extraClosedDates.includes(dateStr(date))) return '임시휴장';
       if(pool.closedOnHoliday==='all' && isHoliday(date)) return '공휴일 휴관';
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return '설·추석 연휴 휴장';
       return full ? `매월 ${pool.closedWeeks.join('·')}번째 일요일 정기휴관` : '정기휴관';

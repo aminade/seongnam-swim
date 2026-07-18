@@ -2,8 +2,7 @@ name: 수영장 시간표 점검
 
 on:
   schedule:
-    - cron: '0 12 28 * *'   # 매월 28일 오후 9시 KST
-    - cron: '0 12 1 * *'    # 매월  1일 오후 9시 KST
+    - cron: '0 12 * * *'    # 매일 오후 9시 KST — 평소엔 알림만(변경 있을 때만 발송), 매월 1일은 전체 다이제스트
   workflow_dispatch:
 
 jobs:
@@ -41,6 +40,9 @@ jobs:
             const fs = require('fs');
             const data = JSON.parse(fs.readFileSync('/tmp/schedule-changes.json', 'utf-8'));
             const { date, changed, errors, youthChanged = [], youthErrors = [] } = data;
+
+            // 실제 변경이 없으면(크롤 오류만) 이슈 생성하지 않음 — 매일 실행 시 오류성 이슈 스팸 방지
+            if (!changed.length && !youthChanged.length) { core.setOutput('number', ''); return; }
 
             // 변경 내용 요약 (사람이 읽기 쉽게)
             const fmt = arr => arr.map(r => {
@@ -90,14 +92,23 @@ jobs:
               `<!-- CHANGES_JSON:${changesJson}:END -->`,
             ].join('\n');
 
-            const created = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `[자동] ${date} 시간표 변경 감지`,
-              body,
-              labels: ['schedule-update'],
+            // 매일 실행이므로 이미 열린 schedule-update 이슈가 있으면 재사용(내용만 갱신) — 중복 이슈 방지
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              labels: 'schedule-update', state: 'open',
             });
-            core.setOutput('number', created.data.number);   // 텔레그램 메시지의 /confirm 링크용
+            let number;
+            if (open.data.length) {
+              number = open.data[0].number;
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: number, body });
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `[자동] ${date} 시간표 변경 감지`, body, labels: ['schedule-update'],
+              });
+              number = created.data.number;
+            }
+            core.setOutput('number', number);   // 텔레그램 메시지의 /confirm 링크용
 
       - name: 텔레그램 발송 (알림 + 공휴일 리마인더)
         if: always()   # 이상 없음이어도 월간 다이제스트로 발송(공휴일 리마인더 포함)
