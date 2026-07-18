@@ -663,7 +663,8 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
     function resolveSlots(def,date){ if(!def) return []; if(Array.isArray(def)) return def; return isSummer(date) ? def.summer : def.winter; }
     function slotsFor(pool,date){
       const d=date.getDay();
-      const def = d===6 ? pool.saturdaySlots : (d===0||isHoliday(date)) ? pool.sundaySlots : pool.weekdaySlots;
+      // 우선순위: 공휴일 > 토·일 > 평일. 공휴일은 요일과 무관하게 일요일 시간표(토요일 공휴일 포함).
+      const def = isHoliday(date) ? pool.sundaySlots : d===6 ? pool.saturdaySlots : d===0 ? pool.sundaySlots : pool.weekdaySlots;
       let slots = resolveSlots(def,date);
       if(d>=1 && d<=5) slots = slots.filter(s=>!s.days || s.days.includes(d)); // 요일 지정 슬롯(예: 월·수·금만 운영)
       return slots;
