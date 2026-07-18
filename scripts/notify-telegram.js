@@ -1,0 +1,120 @@
+#!/usr/bin/env node
+/**
+ * 점검 결과를 텔레그램으로 발송.
+ * - /tmp/notice-check.json (공지 비교 + 공휴일 리마인더)
+ * - /tmp/schedule-changes.json (기존 program-guide 크롤 결과, 있으면 함께 요약)
+ *
+ * 인자: node notify-telegram.js [issueNumber]
+ *   issueNumber가 주어지면 자동반영 후보에 [✅ 반영][❌ 무시] 인라인 버튼을 붙인다.
+ *   버튼 callback_data: "confirm:<issue>" / "reject:<issue>" (Cloudflare Worker가 처리).
+ *
+ * 환경변수: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (필수)
+ */
+
+import { readFileSync, existsSync } from 'fs';
+
+const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+if (!TOKEN || !CHAT_ID) { console.error('TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 필요'); process.exit(1); }
+
+const readJson = p => (existsSync(p) ? JSON.parse(readFileSync(p, 'utf-8')) : null);
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); // HTML escape
+const b = s => `<b>${esc(s)}</b>`;
+const i = s => `<i>${esc(s)}</i>`;
+
+function buildMessage() {
+  const nc = readJson('/tmp/notice-check.json');
+  const sc = readJson('/tmp/schedule-changes.json');
+  const L = [];
+  const label = nc?.target?.label || '';
+  L.push(`🏊 ${b(`성남 수영장 점검 — ${label}`)}`);
+
+  // ── 프로그램 시간표 변경(기존 크롤) ──
+  const changed = sc?.changed || [];
+  const youthChanged = sc?.youthChanged || [];
+  if (changed.length || youthChanged.length) {
+    L.push('');
+    L.push(`⚠️ ${b('시간표 변경 감지')}`);
+    for (const r of [...changed, ...youthChanged]) {
+      L.push(`• ${b(r.pool)}`);
+      for (const c of r.changes) L.push(`   ↳ ${esc(c.desc)}`);
+    }
+  }
+
+  // ── 공지 게시판 비교 ──
+  const diffs = (nc?.noticeResults || []).filter(r => r.status === 'diff');
+  if (diffs.length) {
+    L.push('');
+    L.push(`⚠️ ${b('공식 공지 ↔ 우리 사이트 불일치')}`);
+    L.push(i('공식=spo.isdc.co.kr 공지 · 우리=swim.andlife.app'));
+    for (const r of diffs) {
+      L.push(`• ${b(r.pool)}`);
+      if (r.onlyNotice?.length) L.push(`   ↳ ${esc(r.onlyNotice.map(d => `${d.day}일(${d.reason})`).join(', '))}: 공식=휴장 → 우리 사이트는 운영 중`);
+      if (r.onlyOurs?.length)  L.push(`   ↳ ${esc(r.onlyOurs.map(d => `${d.day}일(${d.reason})`).join(', '))}: 우리 사이트=휴관 → 공식 공지엔 없음`);
+    }
+  }
+
+  // ── 공휴일 리마인더 ──
+  const hi = nc?.holidayInfo;
+  if (hi?.official?.length) {
+    L.push('');
+    L.push(`📅 ${b(`${label} 공휴일 — 확인 필요`)}`);
+    for (const h of hi.official) L.push(`• ${esc(h.date.slice(5))} ${esc(h.name)}`);
+    L.push(i('공지 미게시 시설(도개공·유스센터)의 휴관 반영이 맞는지 확인하세요.'));
+    if (hi.missing?.length) {
+      L.push('');
+      L.push(`🚨 ${b('우리 데이터에 빠진 공휴일')}`);
+      for (const h of hi.missing) L.push(`• ${esc(h.date)} ${esc(h.name)} ← HOLIDAYS 추가 필요`);
+    }
+  }
+
+  // ── 이상 없음 ──
+  const anyAlert = changed.length || youthChanged.length || diffs.length || (hi?.missing?.length);
+  if (!anyAlert) {
+    L.push('');
+    L.push('✅ 시간표·공지 이상 없음');
+  }
+
+  // 크롤 오류
+  const errs = [...(sc?.errors || []), ...(sc?.youthErrors || []), ...(nc?.noticeResults || []).filter(r => r.status === 'error')];
+  if (errs.length) { L.push(''); L.push(`⚠️ 크롤 실패: ${esc(errs.map(e => e.pool).join(', '))}`); }
+
+  return { lines: L, changed };
+}
+
+async function send(text, replyMarkup) {
+  const res = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: CHAT_ID, text, parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    }),
+  });
+  const j = await res.json();
+  if (!j.ok) throw new Error(`Telegram 발송 실패: ${JSON.stringify(j)}`);
+  return j;
+}
+
+async function main() {
+  const issue = process.argv[2];                 // GitHub 이슈 번호(자동반영 후보 있을 때만)
+  const repo = process.env.GITHUB_REPOSITORY;    // "owner/repo" (Actions에서 주입)
+  const { lines, changed } = buildMessage();
+
+  // 자동반영 가능한 항목이 있으면: 범위를 분명히 표시 + GitHub 이슈 링크로 /confirm 유도 (A안)
+  if (issue && changed.length > 0) {
+    lines.push('');
+    lines.push('────────────');
+    lines.push(`${b('자동 반영 가능 — 아래 항목만')}`);
+    for (const r of changed) for (const c of r.changes) lines.push(`   • ${esc(r.pool)}: ${esc(c.desc)}`);
+    const url = repo ? `https://github.com/${repo}/issues/${issue}` : null;
+    if (url) lines.push(`👉 반영하려면 <a href="${esc(url)}">이 이슈</a>에서 <code>/confirm</code> 댓글 (오탐이면 <code>/reject</code>)`);
+    lines.push(i('공지 차이·공휴일 확인 항목은 자동 반영되지 않습니다(수동).'));
+  }
+
+  await send(lines.join('\n'));
+  console.log('텔레그램 발송 완료');
+}
+
+main().catch(e => { console.error(e); process.exit(1); });

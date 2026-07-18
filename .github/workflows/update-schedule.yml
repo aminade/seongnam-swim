@@ -25,8 +25,16 @@ jobs:
         run: node scripts/check-schedule.js
         continue-on-error: true
 
+      - name: 공지 게시판 & 공휴일 점검
+        id: notice
+        run: node scripts/notice-check.js
+        continue-on-error: true
+        env:
+          HOLIDAY_API_KEY: ${{ secrets.HOLIDAY_API_KEY }}
+
       - name: 변경 감지 시 이슈 생성
-        if: steps.check.outcome == 'failure'   # exit 2 = 변경 감지
+        id: issue
+        if: steps.check.outcome == 'failure'   # exit 2 = 자동반영 대상 변경(프로그램 시간표)
         uses: actions/github-script@v7
         with:
           script: |
@@ -82,10 +90,20 @@ jobs:
               `<!-- CHANGES_JSON:${changesJson}:END -->`,
             ].join('\n');
 
-            await github.rest.issues.create({
+            const created = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `[자동] ${date} 시간표 변경 감지`,
               body,
               labels: ['schedule-update'],
             });
+            core.setOutput('number', created.data.number);   // 텔레그램 메시지의 /confirm 링크용
+
+      - name: 텔레그램 발송 (알림 + 공휴일 리마인더)
+        if: always()   # 이상 없음이어도 월간 다이제스트로 발송(공휴일 리마인더 포함)
+        run: node scripts/notify-telegram.js ${{ steps.issue.outputs.number }}
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
