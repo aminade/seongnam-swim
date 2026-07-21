@@ -79,9 +79,33 @@ async function fetchText(url, tries = 3) {
   throw lastErr;
 }
 
-// HTML에서 자유수영 전용 섹션을 추출
-// 전략: "자유수영"이 포함된 <tr> 또는 <td>/<th> 행부터 다음 프로그램 행 전까지
+// HTML에서 일일자유이용 '수영' 표만 추출.
+//
+// 시설마다 표기가 제각각이라('자유수영' / '수영 일일자유이용' / '일일자유 수영') 문자열
+// 매칭으로는 잡히지 않는다. 대신 6곳이 공통으로 쓰는 마크업 구조를 앵커로 삼는다:
+//   <h3>일일자유이용(안내|프로그램)</h3> … <h5>…수영…</h5> <table>…</table> <h5>헬스…</h5>
+// 다음 h5/h3에서 끊어 옆에 붙은 헬스·배드민턴·탁구 표가 섞이지 않게 한다.
+// ('자유'만으로 매칭하면 강습표의 '자유형'(영법)에 걸리므로 쓸 수 없다.)
 function extractFreeSwimSection(html) {
+  const strip = s => s.replace(/<[^>]+>/g, ' ');
+  const h3 = [...html.matchAll(/<h3[^>]*>([\s\S]{0,200}?)<\/h3>/gi)]
+    .find(m => /일일\s*자유\s*이용/.test(strip(m[1])));
+  if (h3) {
+    const after = html.slice(h3.index + h3[0].length);
+    const heads = [...after.matchAll(/<h([35])[^>]*>([\s\S]{0,200}?)<\/h\1>/gi)];
+    const i = heads.findIndex(m => /수영/.test(strip(m[2])));
+    // 수영 헤딩이 h5여야 한다. h3이면 이미 다른 구역으로 넘어간 것.
+    if (i !== -1 && heads[i][1] === '5') {
+      const start = heads[i].index + heads[i][0].length;
+      return after.slice(start, heads[i + 1] ? heads[i + 1].index : start + 4000);
+    }
+  }
+  return extractFreeSwimSectionLegacy(html);
+}
+
+// 구버전 폴백: "자유수영"이 포함된 <tr>부터 다음 프로그램 행 전까지.
+// 위 구조가 깨졌을 때를 대비해 남겨둔다.
+function extractFreeSwimSectionLegacy(html) {
   // 태그 제거 함수
   const stripTags = s => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
@@ -116,13 +140,16 @@ function extractFreeSwimSection(html) {
   return html.slice(Math.max(0, idx - 200), idx + 2000);
 }
 
-// 자유수영 섹션에서 시간 슬롯만 추출 (60분 또는 120분)
+// 자유수영 섹션에서 시간 슬롯만 추출.
+// 실제 표기는 "1시간 기준"이 06:00~06:50(50분), "2시간 기준"이 06:00~07:50(110분)이다.
+// 예전엔 60/120분만 통과시켜 6곳 전부 슬롯이 항상 빈 배열이었고, 그 탓에 슬롯 비교가
+// 한 번도 동작하지 않았다. 유스센터 파서(parseYouthSlots)와 같은 범위 방식으로 맞춘다.
 function parseSwimSlots(section) {
   const matches = [...section.matchAll(/(\d{2}:\d{2})\s*[~～]\s*(\d{2}:\d{2})/g)];
   const valid = [];
   for (const m of matches) {
     const dur = mins(m[2]) - mins(m[1]);
-    if (dur === 60 || dur === 120) valid.push(`${m[1]}~${m[2]}`);
+    if (dur >= 40 && dur <= 130) valid.push(`${m[1]}~${m[2]}`);
   }
   return [...new Set(valid)];
 }
@@ -130,8 +157,8 @@ function parseSwimSlots(section) {
 // 자유수영 요금: 2,000~6,000원 범위
 function parseAdultPrice(section) {
   const stripped = section.replace(/<[^>]+>/g, ' ');
-  // "일반" 또는 "성인" 뒤에 나오는 금액
-  const matches = [...stripped.matchAll(/(?:일반|성인)[^\d]{0,10}([\d,]+)\s*원/g)];
+  // "일반"/"성인" 뒤에 나오는 금액. 표에 "일 반"처럼 공백이 낀 시설이 있어 \s*를 허용한다.
+  const matches = [...stripped.matchAll(/(?:일\s*반|성\s*인)[^\d]{0,10}([\d,]+)\s*원/g)];
   for (const m of matches) {
     const price = parseInt(m[1].replace(/,/g, ''));
     if (price >= 2000 && price <= 6000) return price;
@@ -362,7 +389,16 @@ async function main() {
       continue;
     }
 
-    console.log(`(자유수영 섹션 ${crawled.sectionLength}자)`);
+    // 슬롯을 하나도 못 뽑았으면 '이상 없음'이 아니라 파싱 실패다. 예전엔 이 경우가 조용히
+    // "이상 없음 ✓"로 보고돼, 사이트 구조가 바뀌어도 아무도 눈치채지 못했다.
+    if (crawled.slots.length === 0) {
+      console.log(`(섹션 ${crawled.sectionLength}자) → ❌ 슬롯 파싱 실패`);
+      results.push({ id: pool.id, pool: pool.name, url: pool.url, status: 'error',
+        error: `슬롯 파싱 실패(섹션 ${crawled.sectionLength}자) — 페이지 구조 변경 의심` });
+      continue;
+    }
+
+    console.log(`(자유수영 섹션 ${crawled.sectionLength}자, 슬롯 ${crawled.slots.length}개)`);
     const changes = diff(pool.id, crawled);
     if (changes.length === 0) {
       console.log(`  → 이상 없음 ✓`);
