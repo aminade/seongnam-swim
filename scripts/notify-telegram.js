@@ -22,6 +22,16 @@ const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
 const b = s => `<b>${esc(s)}</b>`;
 const i = s => `<i>${esc(s)}</i>`;
 
+// 직전 실행에서 며칠이 비었는지. 맥(자기호스팅 러너)이 24시간 넘게 꺼져 있으면 GitHub이
+// 대기 중인 실행을 취소해 그날 점검이 통째로 누락되므로, 복귀 후 첫 알림에서 알려준다.
+function missedDays() {
+  const prev = process.env.PREV_RUN_AT;
+  if (!prev) return 0;
+  const gapMs = Date.now() - new Date(prev).getTime();
+  if (!Number.isFinite(gapMs) || gapMs <= 48 * 3600 * 1000) return 0;
+  return Math.floor(gapMs / (24 * 3600 * 1000));
+}
+
 function buildMessage() {
   const nc = readJson('/tmp/notice-check.json');
   const sc = readJson('/tmp/schedule-changes.json');
@@ -29,6 +39,12 @@ function buildMessage() {
   const label = nc?.target?.label || '';
   const runLabel = nc?.target?.runLabel || label;
   L.push(`🏊 ${b(`성남 수영장 점검 — ${runLabel}`)}`);
+
+  const missed = missedDays();
+  if (missed) {
+    L.push('');
+    L.push(`⚠️ ${b(`마지막 점검 이후 ${missed}일`)} — 그 사이 올라온 공지를 놓쳤을 수 있습니다.`);
+  }
 
   // ── 프로그램 시간표 변경(기존 크롤) ──
   const changed = sc?.changed || [];
@@ -95,13 +111,26 @@ function buildMessage() {
     for (const h of hi.missing) L.push(`• ${esc(h.date)} ${esc(h.name)} ← HOLIDAYS 추가 필요`);
   }
 
-  const errs = [...(sc?.errors || []), ...(sc?.youthErrors || []), ...(nc?.noticeResults || []).filter(r => r.status === 'error')];
-  const anyAlert = !!(changed.length || youthChanged.length || diffs.length || temps.length || batch.length || hi?.missing?.length || errs.length);
+  // 크롤 실패: 같은 수영장이 시간표·공지 두 단계에서 모두 실패할 수 있으므로 이름으로 묶어
+  // 한 번만 출력하고, 어느 단계가 깨졌는지 라벨로 밝힌다.
+  const failStages = new Map(); // pool → Set<'시간표'|'공지'>
+  const addFails = (rows, stage) => {
+    for (const r of rows || []) {
+      if (!failStages.has(r.pool)) failStages.set(r.pool, new Set());
+      failStages.get(r.pool).add(stage);
+    }
+  };
+  addFails(sc?.errors, '시간표');
+  addFails(sc?.youthErrors, '시간표');
+  addFails((nc?.noticeResults || []).filter(r => r.status === 'error'), '공지');
+  const errs = [...failStages].map(([pool, stages]) => `${pool}(${[...stages].join('·')})`);
+
+  const anyAlert = !!(changed.length || youthChanged.length || diffs.length || temps.length || batch.length || hi?.missing?.length || errs.length || missed);
 
   // ── 이상 없음 (월초 다이제스트에서만 표기; 알림만 모드에선 애초에 발송 안 함) ──
   if (isMonthly && !anyAlert) { L.push(''); L.push('✅ 시간표·공지 이상 없음'); }
 
-  if (errs.length) { L.push(''); L.push(`⚠️ 크롤 실패: ${esc(errs.map(e => e.pool).join(', '))}`); }
+  if (errs.length) { L.push(''); L.push(`⚠️ 크롤 실패: ${esc(errs.join(', '))}`); }
 
   return { lines: L, changed, anyAlert, isMonthly };
 }

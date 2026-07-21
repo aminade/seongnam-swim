@@ -2,18 +2,43 @@ name: 수영장 시간표 점검
 
 on:
   schedule:
-    - cron: '0 12 * * *'    # 매일 오후 9시 KST — 평소엔 알림만(변경 있을 때만 발송), 매월 1일은 전체 다이제스트
+    # 매일 오후 9시 KST — 평소엔 알림만(변경 있을 때만 발송), 매월 1일은 전체 다이제스트.
+    # 정각(:00)은 GitHub 스케줄러가 붐벼 실제 시작이 최대 100분까지 밀렸다(21:41·22:40 관측) → 어중간한 분으로.
+    - cron: '17 12 * * *'
   workflow_dispatch:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # 국내(맥) 러너에서 실행. GitHub 호스팅 러너(Azure 해외 IP)에서는 spo.isdc.co.kr로의
+    # TCP 연결이 간헐적으로 통째로 막혀(UND_ERR_CONNECT_TIMEOUT, 최대 11분 연속) 크롤이 실패했다.
+    # ⚠️ 공개 저장소이므로 이 워크플로에 pull_request 계열 트리거를 절대 추가하지 말 것
+    #    (포크가 맥에서 임의 코드를 실행할 수 있게 된다). schedule/workflow_dispatch는 포크에서 발동 불가.
+    runs-on: [self-hosted, seongnam-mac]
     permissions:
       contents: write
       issues: write
 
     steps:
       - uses: actions/checkout@v4
+
+      # 자기호스팅 러너는 일회용이 아니라 /tmp가 실행 간에 남는다. 크롤 스텝이 죽어도
+      # 텔레그램 스텝은 if:always()로 도는데, 그때 어제 파일을 읽어 옛 알림을 재발송하는 걸 막는다.
+      - name: 이전 실행 잔여 파일 정리
+        run: rm -f /tmp/schedule-changes.json /tmp/notice-check.json
+
+      # 맥이 24시간 넘게 꺼져 있으면 GitHub이 대기 중인 실행을 취소해 점검이 통째로 누락된다.
+      # 직전 실행 시각을 알려 두면 알림에 "N일 누락" 배너를 띄울 수 있다.
+      - name: 직전 실행 시각 조회
+        id: last
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PREV=$(gh run list --workflow=update-schedule.yml --limit 5 \
+                   --json databaseId,startedAt,status \
+                   --jq "[.[] | select(.status==\"completed\" and .databaseId != ${{ github.run_id }})] | .[0].startedAt // empty")
+          echo "prev_run_at=$PREV" >> "$GITHUB_OUTPUT"
+          echo "직전 완료 실행: ${PREV:-없음}"
 
       - uses: actions/setup-node@v4
         with:
@@ -118,3 +143,4 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          PREV_RUN_AT: ${{ steps.last.outputs.prev_run_at }}
