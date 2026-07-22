@@ -15,7 +15,8 @@ import { readFileSync, existsSync } from 'fs';
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-if (!TOKEN || !CHAT_ID) { console.error('TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 필요'); process.exit(1); }
+const DRY_RUN = process.env.DRY_RUN === '1'; // 실제 발송 없이 메시지를 콘솔에 출력(테스트용)
+if (!DRY_RUN && (!TOKEN || !CHAT_ID)) { console.error('TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 필요'); process.exit(1); }
 
 const readJson = p => (existsSync(p) ? JSON.parse(readFileSync(p, 'utf-8')) : null);
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); // HTML escape
@@ -135,7 +136,39 @@ function buildMessage() {
   return { lines: L, changed, anyAlert, isMonthly };
 }
 
+// 매월 말일 배치가 만든 다음 달 1일 TO-DO(수영장 영업 변경사항 + 이전 달 SEO 성과 기록).
+// 평소 점검 다이제스트와 성격이 달라 별도 메시지로 보낸다. 말일이 아니면 nc.monthlyTodo=null.
+function buildTodoLines() {
+  const nc = readJson('/tmp/notice-check.json');
+  const t = nc?.monthlyTodo;
+  if (!t) return null;
+
+  const fmtDates = (disc, eff) => {
+    if (disc && eff && disc !== eff) return ` (발견 ${esc(disc)} · 적용 ${esc(eff)})`;
+    const only = eff || disc;
+    return only ? ` (${esc(only)})` : '';
+  };
+
+  const L = [];
+  L.push(`✅ ${b(`${t.comingLabel} TO-DO`)}`);
+  L.push('수영장 영업 변경사항');
+  if (t.changes?.length) {
+    for (const c of t.changes) L.push(`• ${esc(c.text)}${fmtDates(c.disc, c.eff)}`);
+  } else if (t.error && t.error !== 'CSV 미설정') {
+    L.push(i(`변경사항 목록을 불러오지 못했습니다 (${t.error})`));
+  } else if (t.error === 'CSV 미설정') {
+    L.push(i('변경사항 시트(웹 게시 CSV) 아직 미연동 — 설정 후 자동 표기됩니다'));
+  } else {
+    L.push('• 변경사항 없음');
+  }
+  L.push('');
+  L.push(`${t.seoMonthLabel} SEO 성과 기록`);
+  if (t.seoDocUrl) L.push(esc(t.seoDocUrl));
+  return L;
+}
+
 async function send(text, replyMarkup) {
+  if (DRY_RUN) { console.log('\n──────── DRY_RUN 메시지 ────────\n' + text + '\n────────────────────────────'); return { ok: true }; }
   const res = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -155,8 +188,12 @@ async function main() {
   const repo = process.env.GITHUB_REPOSITORY;    // "owner/repo" (Actions에서 주입)
   const { lines, changed, anyAlert, isMonthly } = buildMessage();
 
-  // 알림만 모드: 월초(1일) 다이제스트가 아니고 알릴 것도 없으면 발송 생략(매일 실행 스팸 방지)
-  if (!isMonthly && !anyAlert) { console.log('알림 없음(비월초) — 발송 건너뜀'); return; }
+  // 매월 말일: 다음 달 1일 TO-DO는 별도 메시지로 항상 발송(점검 다이제스트 발송 여부와 무관).
+  const todoLines = buildTodoLines();
+
+  // 알림만 모드: 월초(1일) 다이제스트가 아니고 알릴 것도 없으면 점검 메시지는 생략(매일 실행 스팸 방지).
+  // 단, 말일 TO-DO가 있으면 그것만은 보내야 하므로 조기 return 하지 않는다.
+  if (!isMonthly && !anyAlert && !todoLines) { console.log('알림 없음(비월초) — 발송 건너뜀'); return; }
 
   // 자동반영 가능한 항목이 있으면: 범위를 분명히 표시 + GitHub 이슈 링크로 /confirm 유도 (A안)
   if (issue && changed.length > 0) {
@@ -169,8 +206,17 @@ async function main() {
     lines.push(i('공지 차이·공휴일 확인 항목은 자동 반영되지 않습니다(수동).'));
   }
 
-  await send(lines.join('\n'));
-  console.log('텔레그램 발송 완료');
+  // 점검 다이제스트: 월초(1일)거나 알릴 것이 있을 때만. (말일에 이것 없이 TO-DO만 갈 수 있음)
+  if (isMonthly || anyAlert) {
+    await send(lines.join('\n'));
+    console.log('텔레그램 발송 완료(점검)');
+  }
+
+  // 말일 TO-DO: 별도 메시지
+  if (todoLines) {
+    await send(todoLines.join('\n'));
+    console.log('텔레그램 발송 완료(TO-DO)');
+  }
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

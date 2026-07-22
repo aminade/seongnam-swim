@@ -17,6 +17,7 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { buildMonthlyTodo } from './monthly-todo.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const INDEX = join(__dir, '..', 'index.html');
@@ -323,6 +324,16 @@ async function main() {
     console.log('\n(HOLIDAY_API_KEY 미설정 — 공휴일 리마인더 건너뜀)');
   }
 
+  // ── 3) 매월 말일: 다음 달 1일 TO-DO (수영장 영업 변경사항 + 이전 달 SEO 성과 기록) ──
+  // 말일이 아니면 null. 네트워크(구글시트 CSV) 실패가 점검 전체를 깨지 않도록 격리한다.
+  let monthlyTodo = null;
+  try {
+    monthlyTodo = await buildMonthlyTodo();
+    if (monthlyTodo) console.log(`\n${monthlyTodo.comingLabel} TO-DO 생성: 변경 ${monthlyTodo.changes.length}건${monthlyTodo.error ? ` (${monthlyTodo.error})` : ''}`);
+  } catch (e) {
+    console.log(`\nTO-DO 생성 오류: ${e.message}`);
+  }
+
   // ── 요약/출력 ──
   const diffs = noticeResults.filter(r => r.status === 'diff');
   const noticeErrors = noticeResults.filter(r => r.status === 'error' || r.status === 'parse-fail');
@@ -338,7 +349,7 @@ async function main() {
 
   writeFileSync('/tmp/notice-check.json', JSON.stringify({
     target: { year, month, label, runLabel, isFirstOfMonth: kst.getUTCDate() === 1, is25 },
-    noticeResults, tempClosures, monthlyBatch, holidayInfo,
+    noticeResults, tempClosures, monthlyBatch, holidayInfo, monthlyTodo,
     summary: { diffs: diffs.length, temp: tempClosures.length, monthlyBatch: monthlyBatch.length, noticeErrors: noticeErrors.length, holidayMissing },
   }, null, 2));
 

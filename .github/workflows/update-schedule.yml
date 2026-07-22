@@ -55,6 +55,9 @@ jobs:
         continue-on-error: true
         env:
           HOLIDAY_API_KEY: ${{ secrets.HOLIDAY_API_KEY }}
+          # 매월 말일 TO-DO의 '변경사항' 출처(토큰 잠금 Apps Script 프록시 URL, 토큰 포함).
+          # 미설정이면 TO-DO는 "변경사항 시트 미연동" 안내로만 발송.
+          SEO_CHANGES_CSV_URL: ${{ secrets.SEO_CHANGES_CSV_URL }}
 
       - name: 변경 감지 시 이슈 생성
         id: issue

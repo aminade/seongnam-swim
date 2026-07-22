@@ -1,0 +1,6 @@
+{
+  "_설명": "매월 말일(예: 7/31) 밤 배치가 다음 달 1일 'TO-DO' 텔레그램을 보낼 때 쓰는 설정. scripts/monthly-todo.js가 읽는다.",
+  "seoDocUrl": "https://docs.google.com/spreadsheets/d/1yhCsJzDsAf9B7_vdkYHGIlsqECebw5iXYsbQ53DYTxU/edit?usp=sharing",
+  "_changesCsvUrl_안내": "위 시트의 '수영장 운영 변경사항' 탭 데이터를 읽는 URL. (A)그 탭만 '웹에 게시(CSV)'한 URL이거나 (B)토큰 잠금 Apps Script 프록시 URL. 환경변수 SEO_CHANGES_CSV_URL로도 덮어쓸 수 있다. 헤더 행: 대상월(공지할 시점) | 발견일 | 적용일 | 내용",
+  "changesCsvUrl": ""
+}
