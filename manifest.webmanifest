@@ -1,6 +1,6 @@
 {
   "name": "오늘의 자유수영",
-  "short_name": "자유수영",
+  "short_name": "오늘의 자유수영",
   "description": "성남·분당 자유수영과 한강 야외수영장 정보를 한눈에.",
   "start_url": "/?src=a2hs",
   "scope": "/",
