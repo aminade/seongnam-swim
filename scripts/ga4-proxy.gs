@@ -75,6 +75,16 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // action=a2hs&from=YYYY-MM-DD&to=YYYY-MM-DD → 홈 화면 추가 퍼널만 기간 지정 조회
+    // (날짜를 바꿀 때 전체 대시보드를 다시 받지 않도록 가벼운 전용 경로)
+    const action = e && e.parameter && e.parameter.action;
+    if (action === 'a2hs') {
+      const a2hs = buildA2hsFunnel(`properties/${PROPERTY_ID}`, e.parameter.from, e.parameter.to);
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, data: { a2hs, generatedAt: new Date().toISOString() } }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     const data = buildDashboardData();
     return ContentService
       .createTextOutput(JSON.stringify({ ok: true, data }))
@@ -91,6 +101,52 @@ function doGet(e) {
 // 실제 호출은 아래 gaRunReport(UrlFetch)로 하지만, 이 참조가 스코프를 확보해 준다.
 function _keepAnalyticsScope() {
   if (false) AnalyticsData.Properties.runReport('properties/0', {});
+}
+
+// ── 홈 화면에 추가(A2HS) 퍼널 — 기간을 받아 사람 수/발생 횟수를 집계 ──
+// from/to는 'YYYY-MM-DD'(KST). 잘못된 값이면 기본값(배포일~오늘)으로 보정.
+// 지연시간(7초 등)을 바꾼 뒤엔 from을 그 날짜로 주면 변경 이후만 비교할 수 있다.
+//  a2hs_eligible = 노출 조건에 걸림(2·5회차 방문 & "다시 안 보기" 미클릭 & 미설치)
+//  a2hs_shown = 7초 뒤 시트가 실제로 뜸 · a2hs_skipped = 7초 전에 이탈로 안 뜸
+//  a2hs_later/never = "알겠어요"/"다시 안 보기" · a2hs_launch = 아이콘(standalone) 실행
+function buildA2hsFunnel(prop, fromDate, toDate) {
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
+  const valid = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+  let from = valid(fromDate) ? fromDate : A2HS_START_DATE;
+  let to   = valid(toDate)   ? toDate   : todayStr;
+  const EVENTS = ['a2hs_eligible', 'a2hs_shown', 'a2hs_skipped', 'a2hs_later', 'a2hs_never', 'a2hs_launch'];
+  const empty = { startDate: from, endDate: to, eligible: 0, shown: 0, skipped: 0, later: 0, never: 0, launch: 0, showRate: 0,
+    events: { eligible: 0, shown: 0, skipped: 0, later: 0, never: 0, launch: 0 } };
+  // startDate > endDate면 GA4가 400을 던지므로(리셋/미래 날짜 케이스) 빈 결과로 가드
+  if (from > to) return empty;
+
+  const users = {}, events = {};
+  const R = gaRunReport(prop, {
+    dateRanges: [{ startDate: from, endDate: to }],
+    dimensions: [{ name: 'eventName' }],
+    metrics: [{ name: 'totalUsers' }, { name: 'eventCount' }],
+    dimensionFilter: { filter: { fieldName: 'eventName', inListFilter: { values: EVENTS } } },
+  });
+  (R.rows || []).forEach(r => {
+    const k = r.dimensionValues[0].value;
+    users[k]  = parseFloat(r.metricValues[0].value) || 0;
+    events[k] = parseFloat(r.metricValues[1].value) || 0;
+  });
+  const u  = k => Math.round(users[k]  || 0);
+  const ev = k => Math.round(events[k] || 0);
+  const eligible = u('a2hs_eligible');
+  const shown    = u('a2hs_shown');
+  return {
+    startDate: from, endDate: to,
+    eligible, shown, skipped: u('a2hs_skipped'),
+    later: u('a2hs_later'), never: u('a2hs_never'), launch: u('a2hs_launch'),
+    showRate: eligible > 0 ? Math.round(shown / eligible * 100) : 0,
+    // 발생 횟수(참고용) — 사람이 2·5회차에 두 번 걸릴 수 있어 사람 수와 다를 수 있음
+    events: {
+      eligible: ev('a2hs_eligible'), shown: ev('a2hs_shown'), skipped: ev('a2hs_skipped'),
+      later: ev('a2hs_later'), never: ev('a2hs_never'), launch: ev('a2hs_launch'),
+    },
+  };
 }
 
 // ── GA4 Data API 직접 호출 ──
@@ -522,37 +578,9 @@ function buildDashboardData() {
   const sessionsPerReturningObj = rowsToObj(nvrR, 0, 1);
   const avgVisitsPerUser = Math.round((sessionsPerReturningObj['returning'] || 0) * 10) / 10;
 
-  // ── 홈 화면에 추가(A2HS) 퍼널 — 배포일부터 누적, 리셋 대상 아님 ──
-  // 사람 수(totalUsers)와 발생 횟수(eventCount)를 한 번에 받는다.
-  //  a2hs_eligible = 노출 조건에 걸림(2·5회차 방문 & "다시 안 보기" 미클릭 & 미설치)
-  //  a2hs_shown    = 7초 뒤 시트가 실제로 뜸
-  //  a2hs_skipped  = 7초 전에 이탈/백그라운드로 시트가 안 뜸
-  //  a2hs_later/never = "알겠어요"/"다시 안 보기" 클릭, a2hs_launch = 아이콘(standalone) 실행
-  let a2hsUsers = {}, a2hsEvents = {};
-  if (A2HS_START_DATE <= todayStr) {
-    const a2hsR = gaRunReport(prop, {
-      dateRanges: [{ startDate: A2HS_START_DATE, endDate: todayStr }],
-      dimensions: [{ name: 'eventName' }],
-      metrics: [{ name: 'totalUsers' }, { name: 'eventCount' }],
-      dimensionFilter: {
-        filter: {
-          fieldName: 'eventName',
-          inListFilter: { values: ['a2hs_eligible', 'a2hs_shown', 'a2hs_skipped', 'a2hs_later', 'a2hs_never', 'a2hs_launch'] },
-        },
-      },
-    });
-    a2hsUsers = rowsToObj(a2hsR, 0, 0);   // totalUsers (사람 수)
-    a2hsEvents = rowsToObj(a2hsR, 0, 1);  // eventCount (발생 횟수)
-  }
-  const aU = k => Math.round(a2hsUsers[k] || 0);
-  const aE = k => Math.round(a2hsEvents[k] || 0);
-  const a2hsEligible = aU('a2hs_eligible');
-  const a2hsShown    = aU('a2hs_shown');
-  const a2hsSkipped  = aU('a2hs_skipped');
-  const a2hsLater    = aU('a2hs_later');
-  const a2hsNever    = aU('a2hs_never');
-  const a2hsLaunch   = aU('a2hs_launch');
-  const a2hsShowRate = a2hsEligible > 0 ? Math.round(a2hsShown / a2hsEligible * 100) : 0;
+  // ── 홈 화면에 추가(A2HS) 퍼널 — 기본은 배포일~오늘 누적 ──
+  // (기간 선택은 buildA2hsFunnel을 다른 from/to로 부르면 됨 — doGet의 action=a2hs)
+  const a2hs = buildA2hsFunnel(prop, A2HS_START_DATE, todayStr);
 
   // 어제 대비 증감
   const visitorsDiff = ystdVisitors > 0
@@ -589,26 +617,7 @@ function buildDashboardData() {
       books: hangangBooks,
       trend: hangangTrend,
     },
-    a2hs: {
-      startDate: A2HS_START_DATE,
-      // 사람 수(고유 사용자)
-      eligible: a2hsEligible,
-      shown:    a2hsShown,
-      skipped:  a2hsSkipped,
-      later:    a2hsLater,
-      never:    a2hsNever,
-      launch:   a2hsLaunch,
-      showRate: a2hsShowRate,   // 노출된 사람 ÷ 조건에 걸린 사람 (%)
-      // 발생 횟수(참고용) — 사람이 2·5회차에 두 번 걸릴 수 있어 사람 수와 다를 수 있음
-      events: {
-        eligible: aE('a2hs_eligible'),
-        shown:    aE('a2hs_shown'),
-        skipped:  aE('a2hs_skipped'),
-        later:    aE('a2hs_later'),
-        never:    aE('a2hs_never'),
-        launch:   aE('a2hs_launch'),
-      },
-    },
+    a2hs,
     generatedAt: new Date().toISOString(),
   };
 }
