@@ -1367,6 +1367,55 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       });
     })();
 
+    /* ===== 개발자 제외 토글 — 푸터 "오늘의 자유수영" 5번 탭 ===== */
+    // 기존 ?notrack=1 과 완전히 동일한 스위치(sw_notrack + ga-disable)를 켜고 끈다.
+    // standalone(아이콘 앱)은 주소창이 없어 URL로 notrack을 못 넣으므로,
+    // 앱 안에서 이 제스처로 그 저장소에 notrack을 심을 수 있게 한 것.
+    (function(){
+      var GA_ID = 'G-S45MTX2JXK';
+      var marks = document.querySelectorAll('.footer-mark');
+      if (!marks.length) return;
+      var taps = 0, lastTap = 0;
+
+      function showToast(msg){
+        var t = document.createElement('div');
+        t.textContent = msg;
+        t.style.cssText = 'position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:400;background:#10303f;color:#fff;font-family:inherit;font-size:13px;font-weight:600;line-height:1.5;padding:12px 18px;border-radius:12px;box-shadow:0 8px 28px rgba(16,48,63,.3);max-width:88%;text-align:center;opacity:0;transition:opacity .25s;';
+        document.body.appendChild(t);
+        requestAnimationFrame(function(){ t.style.opacity = '1'; });
+        setTimeout(function(){ t.style.opacity = '0'; setTimeout(function(){ t.remove(); }, 320); }, 2600);
+      }
+
+      function toggle(){
+        var on = false;
+        try { on = localStorage.getItem('sw_notrack') === '1'; } catch(e){}
+        try {
+          if (on) {
+            localStorage.removeItem('sw_notrack');
+            window['ga-disable-' + GA_ID] = false;
+            showToast('개발자 제외 OFF · 다음 접속부터 통계에 다시 포함됩니다');
+          } else {
+            localStorage.setItem('sw_notrack', '1');
+            window['ga-disable-' + GA_ID] = true;
+            showToast('개발자 제외 ON · 이 기기(이 앱)는 통계에서 제외됩니다');
+          }
+        } catch(e){}
+      }
+
+      marks.forEach(function(mark){
+        mark.style.userSelect = 'none';
+        mark.style.webkitUserSelect = 'none';
+        mark.style.cursor = 'default';
+        mark.addEventListener('click', function(){
+          var now = Date.now();
+          if (now - lastTap > 1500) taps = 0;   // 탭 간격 벌어지면 리셋
+          lastTap = now;
+          taps++;
+          if (taps >= 5) { taps = 0; toggle(); }
+        });
+      });
+    })();
+
 });
 </script>
 
