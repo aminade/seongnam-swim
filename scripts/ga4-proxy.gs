@@ -33,7 +33,7 @@ const PROPERTY_ID = '543917208';
 //   먼저 정하고 맞는 쪽 헬퍼(gaRunReport vs gaRunReportSinceHour)를 쓸 것.
 const COUNT_START_HOUR = '2026071416'; // 2026-07-14 16:00 KST
 // "홈 화면에 추가" 퍼널은 이 기능 배포일부터 누적 집계(그 이전엔 이벤트가 없음).
-const A2HS_START_DATE = '2026-07-22'; // 홈 화면에 추가 기능 배포일 (KST)
+const A2HS_START_DATE = '2026-07-23'; // 집계 시작일 (KST). 배포일 7/22는 개발자 테스트가 섞여 제외하고 7/23부터 클린 집계.
 
 const POOL_NAMES = {
   tanchen:   '탄천종합운동장',
