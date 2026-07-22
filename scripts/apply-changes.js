@@ -7,6 +7,7 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { appendChange } from './change-log.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const INDEX = join(__dir, '..', 'index.html');
@@ -16,6 +17,7 @@ function mins(t) { const [h,m] = t.split(':').map(Number); return h*60+m; }
 function applyChanges(changedPools) {
   let html = readFileSync(INDEX, 'utf-8');
   const log = [];
+  const applied = []; // 시트 변경로그에 남길 확정 변경(내용 텍스트)
 
   for (const entry of changedPools) {
     const { id, pool, changes } = entry;
@@ -30,6 +32,7 @@ function applyChanges(changedPools) {
         } else {
           html = replaced;
           log.push(`✅ ${pool}: closedWeeks ${change.old} → ${change.new}`);
+          applied.push(`${pool}: 정기휴관 ${change.old.join('·')}주 → ${change.new.join('·')}주`);
         }
       }
 
@@ -48,6 +51,7 @@ function applyChanges(changedPools) {
         } else {
           html = replaced;
           log.push(`✅ ${pool}: 요금 ${change.old}원 → ${change.new}원`);
+          applied.push(`${pool}: 성인 자유수영 요금 ${change.old}→${change.new}원`);
         }
       }
 
@@ -65,13 +69,29 @@ function applyChanges(changedPools) {
         } else {
           html = replaced;
           log.push(`✅ ${pool}: 평일 슬롯 업데이트 → ${change.new.join(', ')}`);
+          applied.push(`${pool}: 평일 자유수영 시간 변경 (${change.new.join(', ')})`);
         }
       }
     }
   }
 
   writeFileSync(INDEX, html);
-  return log;
+  return { log, applied };
+}
+
+// 확정 변경을 시트 '수영장 운영 변경사항' 탭에 기록(발견일=적용일=오늘, 대상월=다음 달).
+// 크롤러가 잡는 시간표·요금 변경은 이미 공식 사이트에 반영된(=적용된) 것이므로 다음 달 공지 대상.
+// SEO_CHANGES_CSV_URL 미설정이거나 네트워크 실패해도 반영 자체는 실패시키지 않는다(best-effort).
+async function logApplied(applied) {
+  if (!applied.length || !process.env.SEO_CHANGES_CSV_URL) return;
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const today = `${kst.getUTCMonth() + 1}/${kst.getUTCDate()}`;
+  for (const text of applied) {
+    try {
+      const r = await appendChange({ text, disc: today, eff: today });
+      console.log(`   ↳ 시트 기록: ${r.dup ? '중복(skip)' : r.ok ? `${r.month}` : `실패(${r.error})`} — ${text}`);
+    } catch (e) { console.log(`   ↳ 시트 기록 실패: ${e.message}`); }
+  }
 }
 
 // CLI 실행
@@ -86,8 +106,10 @@ try {
   process.exit(1);
 }
 
-const log = applyChanges(changedPools);
+const { log, applied } = applyChanges(changedPools);
 log.forEach(l => console.log(l));
+
+await logApplied(applied); // 시트 변경로그 기록(best-effort)
 
 const failed = log.filter(l => l.startsWith('❌'));
 process.exit(failed.length > 0 ? 1 : 0);

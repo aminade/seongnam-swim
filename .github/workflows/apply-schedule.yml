@@ -80,6 +80,9 @@ jobs:
       - name: index.html 업데이트
         id: apply
         if: contains(github.event.comment.body, '/confirm')
+        env:
+          # 확정 변경을 '수영장 운영 변경사항' 시트에 자동 기록(best-effort)
+          SEO_CHANGES_CSV_URL: ${{ secrets.SEO_CHANGES_CSV_URL }}
         run: |
           CHANGES=$(cat /tmp/confirmed-changes.json)
           node scripts/apply-changes.js "$CHANGES"
