@@ -32,6 +32,8 @@ const PROPERTY_ID = '543917208';
 //   있다고 판단해서 리셋 안 함. 새 지표를 추가할 때도 이 두 분류 중 어디에 속하는지
 //   먼저 정하고 맞는 쪽 헬퍼(gaRunReport vs gaRunReportSinceHour)를 쓸 것.
 const COUNT_START_HOUR = '2026071416'; // 2026-07-14 16:00 KST
+// "홈 화면에 추가" 퍼널은 이 기능 배포일부터 누적 집계(그 이전엔 이벤트가 없음).
+const A2HS_START_DATE = '2026-07-22'; // 홈 화면에 추가 기능 배포일 (KST)
 
 const POOL_NAMES = {
   tanchen:   '탄천종합운동장',
@@ -520,6 +522,38 @@ function buildDashboardData() {
   const sessionsPerReturningObj = rowsToObj(nvrR, 0, 1);
   const avgVisitsPerUser = Math.round((sessionsPerReturningObj['returning'] || 0) * 10) / 10;
 
+  // ── 홈 화면에 추가(A2HS) 퍼널 — 배포일부터 누적, 리셋 대상 아님 ──
+  // 사람 수(totalUsers)와 발생 횟수(eventCount)를 한 번에 받는다.
+  //  a2hs_eligible = 노출 조건에 걸림(2·5회차 방문 & "다시 안 보기" 미클릭 & 미설치)
+  //  a2hs_shown    = 7초 뒤 시트가 실제로 뜸
+  //  a2hs_skipped  = 7초 전에 이탈/백그라운드로 시트가 안 뜸
+  //  a2hs_later/never = "알겠어요"/"다시 안 보기" 클릭, a2hs_launch = 아이콘(standalone) 실행
+  let a2hsUsers = {}, a2hsEvents = {};
+  if (A2HS_START_DATE <= todayStr) {
+    const a2hsR = gaRunReport(prop, {
+      dateRanges: [{ startDate: A2HS_START_DATE, endDate: todayStr }],
+      dimensions: [{ name: 'eventName' }],
+      metrics: [{ name: 'totalUsers' }, { name: 'eventCount' }],
+      dimensionFilter: {
+        filter: {
+          fieldName: 'eventName',
+          inListFilter: { values: ['a2hs_eligible', 'a2hs_shown', 'a2hs_skipped', 'a2hs_later', 'a2hs_never', 'a2hs_launch'] },
+        },
+      },
+    });
+    a2hsUsers = rowsToObj(a2hsR, 0, 0);   // totalUsers (사람 수)
+    a2hsEvents = rowsToObj(a2hsR, 0, 1);  // eventCount (발생 횟수)
+  }
+  const aU = k => Math.round(a2hsUsers[k] || 0);
+  const aE = k => Math.round(a2hsEvents[k] || 0);
+  const a2hsEligible = aU('a2hs_eligible');
+  const a2hsShown    = aU('a2hs_shown');
+  const a2hsSkipped  = aU('a2hs_skipped');
+  const a2hsLater    = aU('a2hs_later');
+  const a2hsNever    = aU('a2hs_never');
+  const a2hsLaunch   = aU('a2hs_launch');
+  const a2hsShowRate = a2hsEligible > 0 ? Math.round(a2hsShown / a2hsEligible * 100) : 0;
+
   // 어제 대비 증감
   const visitorsDiff = ystdVisitors > 0
     ? Math.round((todayVisitors - ystdVisitors) / ystdVisitors * 100)
@@ -554,6 +588,26 @@ function buildDashboardData() {
       pools: hangangPools,
       books: hangangBooks,
       trend: hangangTrend,
+    },
+    a2hs: {
+      startDate: A2HS_START_DATE,
+      // 사람 수(고유 사용자)
+      eligible: a2hsEligible,
+      shown:    a2hsShown,
+      skipped:  a2hsSkipped,
+      later:    a2hsLater,
+      never:    a2hsNever,
+      launch:   a2hsLaunch,
+      showRate: a2hsShowRate,   // 노출된 사람 ÷ 조건에 걸린 사람 (%)
+      // 발생 횟수(참고용) — 사람이 2·5회차에 두 번 걸릴 수 있어 사람 수와 다를 수 있음
+      events: {
+        eligible: aE('a2hs_eligible'),
+        shown:    aE('a2hs_shown'),
+        skipped:  aE('a2hs_skipped'),
+        later:    aE('a2hs_later'),
+        never:    aE('a2hs_never'),
+        launch:   aE('a2hs_launch'),
+      },
     },
     generatedAt: new Date().toISOString(),
   };
