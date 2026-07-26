@@ -1367,6 +1367,19 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       });
     })();
 
+    /* ===== 방문 횟수 분포(7/26~) — 전 기기, a2hs 카운터와 별개 ===== */
+    // 대시보드 "방문 횟수 분포"용. 이 기기가 사이트를 몇 번째 여는지를 매 방문 GA4로 보낸다.
+    // GA4에서 이벤트 매개변수 visit_no를 '이벤트 범위 맞춤 측정기준'으로 등록해야 조회된다.
+    // notrack(개발자 제외)이면 gtag가 no-op이라 자동 제외됨. 10회 이상은 10 버킷(=10회+).
+    (function(){
+      try {
+        var K = 'sw_visits_all';
+        var n = (parseInt(localStorage.getItem(K) || '0', 10) || 0) + 1;
+        localStorage.setItem(K, String(n > 999 ? 999 : n));
+        gtag('event', 'visit_count', { visit_no: n > 10 ? 10 : n });
+      } catch(e){}
+    })();
+
     /* ===== 개발자 제외 토글 — 푸터 "오늘의 자유수영" 5번 탭 ===== */
     // 기존 ?notrack=1 과 완전히 동일한 스위치(sw_notrack + ga-disable)를 켜고 끈다.
     // standalone(아이콘 앱)은 주소창이 없어 URL로 notrack을 못 넣으므로,
