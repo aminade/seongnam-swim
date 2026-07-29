@@ -34,6 +34,8 @@ const PROPERTY_ID = '543917208';
 const COUNT_START_HOUR = '2026071416'; // 2026-07-14 16:00 KST
 // "홈 화면에 추가" 퍼널은 이 기능 배포일부터 누적 집계(그 이전엔 이벤트가 없음).
 const A2HS_START_DATE = '2026-07-23'; // 집계 시작일 (KST). 배포일 7/22는 개발자 테스트가 섞여 제외하고 7/23부터 클린 집계.
+// "방문 횟수 분포"는 visit_count 이벤트(index.html) 배포일부터 집계. 그 전엔 이벤트가 없어 0.
+const VISIT_DIST_START = '2026-07-26';
 
 const POOL_NAMES = {
   tanchen:   '탄천종합운동장',
@@ -116,6 +118,7 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
   let to   = valid(toDate)   ? toDate   : todayStr;
   const EVENTS = ['a2hs_eligible', 'a2hs_shown', 'a2hs_skipped', 'a2hs_later', 'a2hs_never', 'a2hs_launch'];
   const empty = { startDate: from, endDate: to, eligible: 0, shown: 0, skipped: 0, later: 0, never: 0, launch: 0, showRate: 0,
+    totalUsers: 0, totalSessions: 0,
     events: { eligible: 0, shown: 0, skipped: 0, later: 0, never: 0, launch: 0 } };
   // startDate > endDate면 GA4가 400을 던지므로(리셋/미래 날짜 케이스) 빈 결과로 가드
   if (from > to) return empty;
@@ -136,17 +139,64 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
   const ev = k => Math.round(events[k] || 0);
   const eligible = u('a2hs_eligible');
   const shown    = u('a2hs_shown');
+
+  // 전체 사람수·방문수(같은 기간, 전 기기) — "아이콘으로 실행" 비율의 분모.
+  // launch(사람)/전체 사람수 = 설치앱 침투율, launch(횟수)/전체 세션 = 아이콘 실행 방문 비율.
+  const T = gaRunReport(prop, {
+    dateRanges: [{ startDate: from, endDate: to }],
+    metrics: [{ name: 'totalUsers' }, { name: 'sessions' }],
+  });
+  const trow = (T.rows && T.rows[0]) ? T.rows[0].metricValues : null;
+  const totalUsers    = trow ? Math.round(parseFloat(trow[0].value) || 0) : 0;
+  const totalSessions = trow ? Math.round(parseFloat(trow[1].value) || 0) : 0;
+
   return {
     startDate: from, endDate: to,
     eligible, shown, skipped: u('a2hs_skipped'),
     later: u('a2hs_later'), never: u('a2hs_never'), launch: u('a2hs_launch'),
     showRate: eligible > 0 ? Math.round(shown / eligible * 100) : 0,
+    totalUsers, totalSessions,
     // 발생 횟수(참고용) — 사람이 2·5회차에 두 번 걸릴 수 있어 사람 수와 다를 수 있음
     events: {
       eligible: ev('a2hs_eligible'), shown: ev('a2hs_shown'), skipped: ev('a2hs_skipped'),
       later: ev('a2hs_later'), never: ev('a2hs_never'), launch: ev('a2hs_launch'),
     },
   };
+}
+
+// ── 방문 횟수 분포 (visit_count 이벤트 · visit_no 매개변수) ──
+// 각 기기는 매 방문마다 visit_no(그 기기의 누적 방문 순번, 10회+는 10)로 visit_count를 쏜다.
+// GA4에서 visit_no의 totalUsers(k) = "k번째 방문을 한 번이라도 찍은 사람" = 누적 ≥k회 방문자.
+// 따라서 정확히 k회 방문한 사람 = totalUsers(k) − totalUsers(k+1) (10회는 ≥10 그대로).
+// visit_no를 '이벤트 범위 맞춤 측정기준'으로 GA4에 등록하기 전엔 customEvent:visit_no 조회가
+// 400을 던지므로 try/catch로 감싸 빈 결과를 돌려준다(대시보드는 스켈레톤으로 남음).
+function buildVisitDistribution(prop) {
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
+  const base = { startDate: VISIT_DIST_START, dist: [] };
+  try {
+    const R = gaRunReport(prop, {
+      dateRanges: [{ startDate: VISIT_DIST_START, endDate: todayStr }],
+      dimensions: [{ name: 'customEvent:visit_no' }],
+      metrics: [{ name: 'totalUsers' }],
+      dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'visit_count' } } },
+    });
+    const atLeast = {}; // k → 누적 ≥k회 방문자 수
+    (R.rows || []).forEach(r => {
+      const k = parseInt(r.dimensionValues[0].value, 10);
+      if (!k || k < 1) return; // '(not set)' 등은 무시
+      atLeast[Math.min(k, 10)] = Math.round(parseFloat(r.metricValues[0].value) || 0);
+    });
+    const dist = [];
+    for (let k = 1; k <= 10; k++) {
+      const cur = atLeast[k] || 0;
+      const users = k < 10 ? Math.max(0, cur - (atLeast[k + 1] || 0)) : cur; // 10회는 ≥10
+      dist.push({ visits: k, label: k < 10 ? (k + '회') : '10회+', users: users });
+    }
+    return { startDate: VISIT_DIST_START, dist: dist };
+  } catch (e) {
+    base.error = String(e).slice(0, 200);
+    return base;
+  }
 }
 
 // ── GA4 Data API 직접 호출 ──
@@ -253,6 +303,7 @@ function buildDashboardData() {
   const propertyTimeZone = gaGetPropertyTimeZone(prop);
 
   const twentyNineDaysAgo = Utilities.formatDate(new Date(now.getTime() - 29 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
+  const ninetyDaysAgo     = Utilities.formatDate(new Date(now.getTime() - 89 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd'); // 유입경로 일별(최근 3개월)
 
   // ── 오늘 핵심 지표 (리셋 대상 아님 — 방문자수와 같은 분류) ──
   // 오늘/어제를 한 요청에 dateRanges 2개로 넣으면 응답 rows 순서가 요청 순서와 항상
@@ -339,12 +390,29 @@ function buildDashboardData() {
   });
 
   // ── 유입 경로 (이번달, 리셋 대상 아님) ──
+  // 전체 = distinct activeUsers(소스별). 신규/재방문은 GA4 실제 newVsReturning 차원으로 분류한다.
+  // (예전엔 재방문=activeUsers−newUsers로 뺐는데, 오픈<1개월 신생 사이트에선 '이번달 신규'가
+  //  거의 전원이라 재방문이 0으로 붕괴했다 — newVsReturning은 기간에 안 흔들려 정확하다.)
   const sourceR = gaRunReport(prop, {
     dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     dimensions: [{ name: 'sessionSource' }],
     metrics: [{ name: 'activeUsers' }],
     orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
-    limit: 8,
+    limit: 10,
+  });
+  // 소스 × 신규/재방문 (activeUsers) — 소스별 신규/재방문 사용자 수를 실제 분류로 얻는다.
+  const sourceNvrR = gaRunReport(prop, {
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dimensions: [{ name: 'sessionSource' }, { name: 'newVsReturning' }],
+    metrics: [{ name: 'activeUsers' }],
+  });
+
+  // ── 유입 경로 일별 추이 (최근 3개월, 리셋 대상 아님) — 소스×날짜×신규/재방문 ──
+  const sourceTrendR = gaRunReport(prop, {
+    dateRanges: [{ startDate: ninetyDaysAgo, endDate: todayStr }],
+    dimensions: [{ name: 'date' }, { name: 'sessionSource' }, { name: 'newVsReturning' }],
+    metrics: [{ name: 'activeUsers' }],
+    orderBys: [{ dimension: { dimensionName: 'date' } }],
   });
 
   // ── 지역 (이번달, 리셋 대상 아님) ──
@@ -508,11 +576,73 @@ function buildDashboardData() {
     tablet:  Math.round((devObj['tablet']  || 0) / devTotal * 100),
   };
 
-  // 유입 경로
-  const sources = (sourceR.rows || []).map(r => ({
-    source: r.dimensionValues[0].value,
-    users:  parseInt(r.metricValues[0].value) || 0,
+  // 유입 경로 (이번달) — 전체=distinct activeUsers, 신규/재방문=newVsReturning 실제 분류
+  const nvrBySource = {}; // source → {new, returning}
+  (sourceNvrR.rows || []).forEach(r => {
+    const src  = r.dimensionValues[0].value;
+    const kind = r.dimensionValues[1].value; // 'new' | 'returning' | '(not set)'
+    const v    = parseInt(r.metricValues[0].value) || 0;
+    const o = (nvrBySource[src] = nvrBySource[src] || { new: 0, returning: 0 });
+    if (kind === 'new') o.new += v;
+    else if (kind === 'returning') o.returning += v;
+    // '(not set)'(아직 미분류·처리지연분)는 전체엔 있어도 신규/재방문 어느 쪽도 아니므로 제외
+  });
+  const sources = (sourceR.rows || []).map(r => {
+    const src = r.dimensionValues[0].value;
+    const users = parseInt(r.metricValues[0].value) || 0;
+    const nv = nvrBySource[src] || { new: 0, returning: 0 };
+    // 신규 = 이 경로로 '첫 방문'한 사람 수, 재방문 = 이 경로로 '재방문'한 사람 수 (GA4 newVsReturning
+    // 원본 버킷). 목적: "첫 방문은 어느 경로로 / 재방문은 어느 경로로 들어오나"를 각각 본다.
+    // → 둘은 배타적 분할이 아니다: 한 사람이 인스타로 첫 방문하고 direct로 재방문하면 신규-인스타와
+    //   재방문-direct에 따로, 같은 경로로 첫 방문+재방문하면 그 경로의 신규·재방문 양쪽에 잡힌다.
+    //   그래서 신규+재방문 ≠ 전체가 정상이다(전체 users는 중복 없는 순 방문자). '분할'로 바꾸면
+    //   (전체−재방문) 첫 방문 경로가 왜곡되므로 원본 버킷을 그대로 쓴다.
+    return { source: src, users: users, newUsers: nv.new, returning: nv.returning };
+  });
+
+  // 유입 경로 일별 추이 (최근 3개월) — 소스별 상위 N + 기타, 날짜별 전체/신규/재방문 시리즈
+  const stByDate = {};       // date → { source → {all, new, ret} }
+  const stTotal = {};        // source → 전체 합(상위 N 선정용)
+  const stDateSet = {};
+  (sourceTrendR.rows || []).forEach(r => {
+    const date = r.dimensionValues[0].value;
+    const src  = r.dimensionValues[1].value;
+    const kind = r.dimensionValues[2].value; // 'new' | 'returning' | '(not set)'
+    const v    = parseInt(r.metricValues[0].value) || 0;
+    stDateSet[date] = true;
+    const day = (stByDate[date] = stByDate[date] || {});
+    const cur = (day[src] = day[src] || { all: 0, new: 0, ret: 0 });
+    cur.all += v; // 전체는 모든 분류 합
+    if (kind === 'new') cur.new += v;
+    else if (kind === 'returning') cur.ret += v;
+    stTotal[src] = (stTotal[src] || 0) + v;
+  });
+  const stDates = Object.keys(stDateSet).sort();
+  const ST_TOP_N = 5;
+  const stTopSources = Object.keys(stTotal).sort((a, b) => stTotal[b] - stTotal[a]).slice(0, ST_TOP_N);
+  const stTopSet = {}; stTopSources.forEach(s => stTopSet[s] = true);
+  const stSeriesFor = pick => src => stDates.map(d => {
+    const c = (stByDate[d] && stByDate[d][src]) || null;
+    return c ? pick(c) : 0;
+  });
+  const stOtherFor = pick => stDates.map(d => {
+    const day = stByDate[d] || {};
+    let sum = 0;
+    Object.keys(day).forEach(s => { if (!stTopSet[s]) sum += pick(day[s]); });
+    return sum;
+  });
+  const pickAll = c => c.all, pickNew = c => c.new, pickRet = c => c.ret;
+  const stSeries = stTopSources.map(src => ({
+    source: src,
+    all: stSeriesFor(pickAll)(src),
+    new: stSeriesFor(pickNew)(src),
+    ret: stSeriesFor(pickRet)(src),
   }));
+  const stHasOther = Object.keys(stTotal).some(s => !stTopSet[s]);
+  if (stHasOther) {
+    stSeries.push({ source: '기타', all: stOtherFor(pickAll), new: stOtherFor(pickNew), ret: stOtherFor(pickRet) });
+  }
+  const sourceTrend = { startDate: ninetyDaysAgo, dates: stDates, series: stSeries };
 
   // 지역
   const cities = (cityR.rows || []).map(r => ({
@@ -582,6 +712,9 @@ function buildDashboardData() {
   // (기간 선택은 buildA2hsFunnel을 다른 from/to로 부르면 됨 — doGet의 action=a2hs)
   const a2hs = buildA2hsFunnel(prop, A2HS_START_DATE, todayStr);
 
+  // ── 방문 횟수 분포 (7/26~) ──
+  const visitDist = buildVisitDistribution(prop);
+
   // 어제 대비 증감
   const visitorsDiff = ystdVisitors > 0
     ? Math.round((todayVisitors - ystdVisitors) / ystdVisitors * 100)
@@ -605,6 +738,7 @@ function buildDashboardData() {
     dayOfWeek,
     devices,
     sources,
+    sourceTrend,
     cities,
     tabs,
     pools,
@@ -618,6 +752,7 @@ function buildDashboardData() {
       trend: hangangTrend,
     },
     a2hs,
+    visitDist,
     generatedAt: new Date().toISOString(),
   };
 }
