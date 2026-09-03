@@ -39,8 +39,13 @@ const YOUTH_META = [
 
 // 수정유스센터: 신축 건물 시범운영 중(2026-07-25~별도 공지시까지). 정식 운영시간안내
 // 페이지(fmcs/32)에는 아직 수영장 시간표가 반영되지 않아, 위 3곳과 같은 표 파싱이 불가능함.
-// 대신 공지사항 게시판(fmcs/22)의 고정 공지를 감시 → 공지가 바뀌면(일정 변경/종료 등) 수동 검토.
+// 대신 공지사항 게시판(fmcs/22)을 감시 → 수영 관련 공지가 바뀌면(일정 변경/종료 등) 수동 검토.
 // 정식 페이지에 시간표가 등장하면(=정식 운영 전환) 별도로 알림 → 그때 YOUTH_META로 승격.
+//
+// 감시 방식: 예전엔 '게시판 맨 위 글'이 우리 근거 공지인지만 봤는데, 이 게시판은 수영장과
+// 무관한 '수진동글'(청소년자유이용공간) 공지가 수시로 올라와 근거 공지를 아래로 밀어낸다.
+// 그때마다 매일 밤 오탐이 났다(2026-09 관측). 그래서 순서가 아니라 내용을 본다:
+//   ① 근거 공지가 아직 살아있고 제목이 그대로인가  ② 우리가 모르는 '수영' 공지가 새로 떴는가
 const SUJEONG_NOTICE = {
   id: 'yc_sujeong',
   name: '수정유스센터',
@@ -48,6 +53,11 @@ const SUJEONG_NOTICE = {
   officialUrl: 'https://www.snyouth.or.kr/fmcs/32',
   knownActionValue: '7328334a4cc9faa679e34190215a7e1a',
   knownTitle: '수정유스센터 수영장 시범운영(일일 자유수영) 일정 안내',
+  // 이미 확인을 마친 '수영' 포함 공지. 목록에 이 밖의 수영 공지가 뜨면 = 진짜 신호(종료·시간 변경 등).
+  ackNotices: [
+    '7328334a4cc9faa679e34190215a7e1a', // 시범운영(일일 자유수영) 일정 안내 = 우리 사이트 근거
+    '811bd591d4aa7ae13504825f83f9412b', // 수정유스센터 수영장 운영 관련 안내(개장 예고, 2026-06)
+  ],
 };
 
 // index.html에 하드코딩된 값과 동일하게 유지 (변경 감지 기준: 전체 슬롯 집합 + 휴관주차)
@@ -338,10 +348,24 @@ function diffYouth(id, crawled) {
   return changes;
 }
 
-// 게시판 목록에서 최상단 고정("공지") 글의 action-value 해시 + 제목 추출
-function extractPinnedNotice(html) {
-  const m = html.match(/action-value=([a-f0-9]{32})"[^>]*>\s*(?:<span[^>]*>)?\s*([^<]{5,100})/);
-  return m ? { actionValue: m[1], title: m[2].trim() } : null;
+const noticeUrl = (cfg, actionValue) => `${cfg.boardUrl}?action=read&action-value=${actionValue}`;
+
+const decodeEntities = s => s
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+  .replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+  .trim();
+
+// 게시판 1페이지(20건)의 글 목록 → [{actionValue, title}]
+function extractNoticeList(html) {
+  const re = /action-value=([a-f0-9]{32})"[^>]*>\s*(?:<span[^>]*>)?\s*([^<]{5,100})/g;
+  return [...html.matchAll(re)].map(m => ({ actionValue: m[1], title: decodeEntities(m[2]) }));
+}
+
+// 근거 공지가 1페이지에서 안 보일 때, 삭제된 건지 뒤 페이지로 밀린 건지 상세 페이지로 판별한다.
+// (목록 2페이지 `?page=2`는 세션 없이 받으면 표가 통째로 비어 와서 근거로 쓸 수 없다.)
+async function knownNoticeStillPosted(cfg) {
+  const html = await fetchText(noticeUrl(cfg, cfg.knownActionValue));
+  return decodeEntities(html.replace(/<[^>]+>/g, ' ')).includes(cfg.knownTitle);
 }
 
 async function crawlSujeongNotice(cfg) {
@@ -349,28 +373,51 @@ async function crawlSujeongNotice(cfg) {
     fetchText(cfg.boardUrl),
     fetchText(cfg.officialUrl),
   ]);
-  const pinned = extractPinnedNotice(boardHtml);
+  const list = extractNoticeList(boardHtml);
+  // 한 건도 못 뽑았으면 '이상 없음'이 아니라 파싱 실패다. 조용히 통과시키면 새 공지를 놓친다.
+  if (list.length === 0) throw new Error('공지 목록 파싱 실패 — 게시판 구조 변경 의심');
+  const known = list.find(n => n.actionValue === cfg.knownActionValue) || null;
+  const knownPosted = known ? true : await knownNoticeStillPosted(cfg);
+  const newSwimNotices = list.filter(n => /수영/.test(n.title) && !cfg.ackNotices.includes(n.actionValue));
   // 정식 페이지에 실제 시간표가 채워졌는지 = 기존 유스센터 파서 재사용 (있으면 정식 운영 전환 신호)
   const officialSlots = parseYouthSlots(extractYouthSwimSection(officialHtml));
-  return { pinned, officialSlots };
+  return { listed: list.length, known, knownPosted, newSwimNotices, officialSlots };
 }
 
 function diffSujeongNotice(cfg, crawled) {
   const changes = [];
-  if (crawled.pinned && crawled.pinned.actionValue !== cfg.knownActionValue) {
+
+  if (!crawled.knownPosted) {
     changes.push({
       field: 'notice',
       old: cfg.knownTitle,
-      new: crawled.pinned.title,
-      desc: `공지 변경 감지: "${cfg.knownTitle}" → "${crawled.pinned.title}" (수동 확인 필요)`,
+      new: null,
+      desc: `근거 공지가 사라졌거나 제목이 바뀜: "${cfg.knownTitle}" — 시범운영 종료·교체 가능성, 수동 확인 필요 ${noticeUrl(cfg, cfg.knownActionValue)}`,
+    });
+  } else if (crawled.known && crawled.known.title !== cfg.knownTitle) {
+    changes.push({
+      field: 'notice',
+      old: cfg.knownTitle,
+      new: crawled.known.title,
+      desc: `근거 공지 제목 변경: "${cfg.knownTitle}" → "${crawled.known.title}" (수동 확인 필요) ${noticeUrl(cfg, cfg.knownActionValue)}`,
     });
   }
+
+  for (const n of crawled.newSwimNotices) {
+    changes.push({
+      field: 'newNotice',
+      new: n.title,
+      desc: `새 수영 관련 공지: "${n.title}" — 일정 변경 여부 확인 후 ackNotices에 추가 ${noticeUrl(cfg, n.actionValue)}`,
+    });
+  }
+
   if (crawled.officialSlots.length > 0) {
     changes.push({
       field: 'officialPage',
-      desc: `정식 운영시간안내 페이지(fmcs/32)에 시간표 등장(${crawled.officialSlots.length}개 슬롯) — 정식 운영 전환 가능성, 표준 유스센터 파싱으로 전환 검토`,
+      desc: `정식 운영시간안내 페이지에 시간표 등장(${crawled.officialSlots.length}개 슬롯) — 정식 운영 전환 가능성, 표준 유스센터 파싱으로 전환 검토 ${cfg.officialUrl}`,
     });
   }
+
   return changes;
 }
 
