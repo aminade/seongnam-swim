@@ -85,7 +85,11 @@ function buildMessage() {
   // AI 키가 없어 해석 못 한 글은 한 줄로(첫 실행엔 수십 건이라 목록으로 보내면 폭탄이 된다).
   const noKey = w.manual.filter(m => m.reason.startsWith('AI 키 미설정'));
   const manual = w.manual.filter(m => !m.reason.startsWith('AI 키 미설정'));
-  if (noKey.length) {
+  if (w.aiBlocked) {
+    L.push('');
+    L.push(`🔑 ${b('AI 호출 실패')} — 운영 관련 새 글 ${noKey.length}건을 해석하지 못했어요. 문제가 풀리면 다음 실행에서 자동으로 다시 읽어요.`);
+    L.push(`   ↳ ${esc(String(w.aiBlocked).slice(0, 300))}`);
+  } else if (noKey.length) {
     L.push('');
     L.push(`🔑 ${b('AI 키 미설정')} — 운영 관련 새 글 ${noKey.length}건을 해석하지 못했어요. 키 등록 후 다음 실행에서 자동으로 다시 읽어요.`);
   }

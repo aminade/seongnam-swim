@@ -70,9 +70,15 @@ export async function interpretNotice({ poolName, title, date, text }) {
     if (!res.parsed_output) return { ok: false, reason: `parse-fail(${res.stop_reason})` };
     return { ok: true, facts: res.parsed_output, usage: res.usage };
   } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) return { ok: false, reason: 'API 키 오류' };
+    // keyProblem=true 면 키·계정 문제라 다른 글도 똑같이 실패한다 → 호출부가 이번 실행의 AI 호출을 멈춘다.
+    const msg = String(e?.error?.error?.message || e.message || '');
+    if (e instanceof Anthropic.AuthenticationError) return { ok: false, keyProblem: true, reason: `API 키 오류: ${msg}` };
+    if (e instanceof Anthropic.PermissionDeniedError) return { ok: false, keyProblem: true, reason: `권한 없음: ${msg}` };
     if (e instanceof Anthropic.RateLimitError) return { ok: false, reason: '요청 한도 초과' };
-    if (e instanceof Anthropic.APIError) return { ok: false, reason: `API ${e.status}: ${String(e.message).slice(0, 120)}` };
+    if (e instanceof Anthropic.APIError) {
+      const keyProblem = e.status === 400 && /api key|workspace|credit balance|billing/i.test(msg);
+      return { ok: false, keyProblem, reason: `API ${e.status}: ${msg}` };
+    }
     return { ok: false, reason: e.message };
   }
 }

@@ -148,6 +148,7 @@ export async function watchNotices({ site, log = console.log, today = new Date()
   const manual = [];      // 자동 판독 불가 → 직접 확인
   const needsImpl = [];   // 새 구현 필요(이번에 처음 나온 것만)
   const stats = { posts: posts.length, read: 0, ops: 0, ai: 0, inputTokens: 0, outputTokens: 0 };
+  let aiBlocked = null; // 키·계정 문제로 AI를 못 쓰게 되면 사유(이후 글은 호출하지 않음)
 
   for (const p of posts) {
     if (p.error) continue;
@@ -170,12 +171,19 @@ export async function watchNotices({ site, log = console.log, today = new Date()
     stats.ops++;
     if (ex.skipped.length) log(`      건너뜀: ${ex.skipped.map(s => `${s.name}(${s.reason})`).join(', ')}`);
 
-    if (!hasKey) {
-      entry.status = 'no-key';
+    if (!hasKey || aiBlocked) {
+      entry.status = 'no-key'; // 키가 생기거나 문제가 풀리면 다음 실행에서 다시 읽는다
       manual.push({ ...entry, reason: 'AI 키 미설정 — 휴장/운영 관련 단어가 있는 글' });
       continue;
     }
     const r = await interpretNotice({ poolName: p.poolName, title: p.title, date: p.date, text: ex.text });
+    if (!r.ok && r.keyProblem) {
+      aiBlocked = r.reason;
+      log(`      ⛔ AI 사용 불가 — 이번 실행은 AI 호출 중단: ${r.reason}`);
+      entry.status = 'no-key';
+      manual.push({ ...entry, reason: 'AI 키 미설정 — 휴장/운영 관련 단어가 있는 글' });
+      continue;
+    }
     if (!r.ok) {
       entry.status = 'ai-fail';
       manual.push({ ...entry, reason: `자동 해석 실패(${r.reason})` });
@@ -213,5 +221,5 @@ export async function watchNotices({ site, log = console.log, today = new Date()
   state.lastRun = new Date().toISOString();
   if (process.env.NOTICE_DRY_STATE !== '1') saveState(state);
 
-  return { firstRun, hasKey, model: NOTICE_MODEL, fresh, pending, needsImpl, manual, errors, stats };
+  return { firstRun, hasKey, aiBlocked, model: NOTICE_MODEL, fresh, pending, needsImpl, manual, errors, stats };
 }
