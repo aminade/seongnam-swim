@@ -73,6 +73,8 @@ jobs:
           # 공지 텍스트 해석(휴장일·특별 시간표 구조화). 미설정이면 "AI 키 미설정" 한 줄 알림으로 강등.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTICE_MODEL: claude-sonnet-5
+          # 조직 단위 키(워크스페이스 미지정)일 때만 필요. 워크스페이스 안에서 만든 키면 비워 둬도 된다.
+          ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
           # 테스트 실행은 상태 파일을 저장하지 않는다(실제 매일 점검이 같은 글을 다시 읽을 수 있게).
           NOTICE_DRY_STATE: ${{ inputs.dry_run && '1' || '' }}
 

@@ -4,6 +4,7 @@
  *
  * 환경변수: ANTHROPIC_API_KEY (없으면 {ok:false, reason:'no-key'} → 호출부에서 "직접 확인"으로 강등)
  *           NOTICE_MODEL (기본 claude-sonnet-5)
+ *           ANTHROPIC_WORKSPACE_ID (선택: 워크스페이스에 속하지 않은 조직 키일 때만 필요)
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -55,7 +56,9 @@ const SYSTEM = `너는 성남시 공공 수영장 공지를 읽어 "자유수영
 let client;
 export async function interpretNotice({ poolName, title, date, text }) {
   if (!process.env.ANTHROPIC_API_KEY) return { ok: false, reason: 'no-key' };
-  client ??= new Anthropic();
+  // 워크스페이스에 속하지 않은(조직 단위) 키는 어느 워크스페이스로 쓸지 헤더로 알려줘야 한다.
+  const ws = process.env.ANTHROPIC_WORKSPACE_ID;
+  client ??= new Anthropic(ws ? { defaultHeaders: { 'anthropic-workspace-id': ws } } : {});
   const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
   const user = `오늘(KST): ${today}\n수영장: ${poolName}\n게시일: ${date || '알 수 없음'}\n제목: ${title}\n\n<공지_텍스트>\n${text}\n</공지_텍스트>`;
   try {
