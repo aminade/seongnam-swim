@@ -89,3 +89,36 @@ export async function interpretNotice({ poolName, title, date, text }) {
     return { ok: false, reason: e.message };
   }
 }
+
+// ── 검증: "사이트와 다르다"는 주장을 공지 원본 이미지로 다시 확인 ──
+// 텍스트 추출은 표의 칸 구분을 잃어 다른 시설 칸을 수영장으로 오독할 수 있다.
+// 불일치가 나온 글만, 원본(PDF 페이지·이미지)을 보여 주고 주장별로 맞는지 판정시킨다.
+const Verdicts = z.object({
+  verdicts: z.array(z.object({
+    index: z.number().describe('주장 번호(0부터)'),
+    correct: z.boolean().describe('원본 기준으로 이 수영장의 자유수영에 대해 주장이 맞으면 true'),
+    why: z.string().describe('판단 근거 한 줄'),
+  })),
+});
+export async function verifyClaims({ poolName, title, images, claims }) {
+  if (!process.env.ANTHROPIC_API_KEY) return { ok: false, reason: 'no-key' };
+  const ws = process.env.ANTHROPIC_WORKSPACE_ID;
+  client ??= new Anthropic(ws ? { defaultHeaders: { 'anthropic-workspace-id': ws } } : {});
+  const list = claims.map((c, i) => `${i}. ${c}`).join('\n');
+  const content = [
+    ...images.map(im => ({ type: 'image', source: { type: 'base64', media_type: im.mediaType, data: im.buf.toString('base64') } })),
+    { type: 'text', text: `위 이미지는 ${poolName}의 공지 「${title}」 원본이다. 표에는 수영장 외 다른 시설(헬스·골프 등) 칸이 함께 있을 수 있다.\n`
+      + `아래 각 주장이 "수영장(자유수영)"에 대해 원본과 맞는지 판정해라. 다른 시설 칸의 내용이면 false.\n\n${list}` },
+  ];
+  try {
+    const res = await client.messages.parse({
+      model: NOTICE_MODEL, max_tokens: 8000,
+      messages: [{ role: 'user', content }],
+      output_config: { format: zodOutputFormat(Verdicts) },
+    });
+    if (!res.parsed_output) return { ok: false, reason: `parse-fail(${res.stop_reason})` };
+    return { ok: true, verdicts: res.parsed_output.verdicts, usage: res.usage };
+  } catch (e) {
+    return { ok: false, reason: String(e?.error?.error?.message || e.message || e) };
+  }
+}

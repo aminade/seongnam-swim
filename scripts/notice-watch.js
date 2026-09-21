@@ -18,8 +18,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
 import { collectPosts, htmlToText } from './notice-sources.js';
-import { extractPostText } from './notice-extract.js';
-import { interpretNotice, NOTICE_MODEL } from './notice-ai.js';
+import { extractPostText, collectPostImages } from './notice-extract.js';
+import { interpretNotice, verifyClaims, NOTICE_MODEL } from './notice-ai.js';
 
 export const STATE_PATH = process.env.NOTICE_STATE || join(homedir(), '.swim-notice', 'state.json');
 const LOOKBACK_DAYS = +(process.env.NOTICE_LOOKBACK_DAYS || 45);
@@ -219,7 +219,7 @@ export async function watchNotices({ site, log = console.log, today = new Date()
     log(`      → ${r.facts.relevant ? r.facts.summary : '자유수영 무관'}`);
     if (!r.facts.relevant) continue;
 
-    readNow.push(entry);
+    readNow.push({ entry, post: p });
     for (const u of r.facts.unsupported || []) needsImpl.push({ ...entry, description: u.description });
     // 해석은 됐지만 일부 첨부를 못 읽었다면 알려서 사람이 확인할 수 있게
     const unread = ex.skipped.filter(s => !/같은 내용 PDF/.test(s.reason));
@@ -228,8 +228,25 @@ export async function watchNotices({ site, log = console.log, today = new Date()
 
   // 사이트 대조: 같은 수영장의 모든 공지 휴장일을 합쳐 놓고 비교(월간 시간표 글과 휴장일 글이 따로 올라옴)
   const closedByPool = closedIndex(state);
-  for (const e of readNow) {
-    const items = compareFacts(site, e.poolId, e.facts, today, closedByPool[e.poolId]);
+  for (const { entry: e, post } of readNow) {
+    let items = compareFacts(site, e.poolId, e.facts, today, closedByPool[e.poolId]);
+    if (!items.length) continue;
+    // 원본 이미지로 검증(첨부 PDF·이미지가 있는 글만). 틀린 주장은 버리고, 전부 틀리면 해석 결과를 무효로 둔다.
+    const images = await collectPostImages(post);
+    if (images.length) {
+      const claims = items.map(it => it.text.split(' → ')[0]);
+      const v = await verifyClaims({ poolName: e.poolName, title: e.title, images, claims });
+      if (v.ok) {
+        stats.inputTokens += v.usage?.input_tokens || 0;
+        stats.outputTokens += v.usage?.output_tokens || 0;
+        const wrong = new Set(v.verdicts.filter(x => !x.correct).map(x => x.index));
+        for (const x of v.verdicts.filter(x => !x.correct)) log(`      ✗ 원본 대조로 제외: ${claims[x.index]} — ${x.why}`);
+        items = items.filter((_, i) => !wrong.has(i));
+        e.rejected = [...wrong].map(i => claims[i]); // 매일 재대조 때도 다시 나오지 않게 기록
+      } else {
+        log(`      (원본 검증 실패: ${v.reason} — 텍스트 해석 결과대로 알림)`);
+      }
+    }
     if (items.length) fresh.push({ ...e, summary: e.facts.summary, items });
   }
 
@@ -238,7 +255,9 @@ export async function watchNotices({ site, log = console.log, today = new Date()
   const pending = [];
   for (const e of Object.values(state.posts)) {
     if (e.status !== 'relevant' || !e.facts || freshKeys.has(e.url)) continue;
-    const items = compareFacts(site, e.poolId, e.facts, today, closedByPool[e.poolId]);
+    const rejected = new Set(e.rejected || []);
+    const items = compareFacts(site, e.poolId, e.facts, today, closedByPool[e.poolId])
+      .filter(it => !rejected.has(it.text.split(' → ')[0]));
     if (items.length) pending.push({ ...e, items });
   }
 

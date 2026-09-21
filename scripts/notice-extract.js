@@ -129,3 +129,45 @@ export async function extractPostText(post) {
   const text = parts.map(p => `[${p.from}]\n${p.text}`).join('\n\n');
   return { text, parts: parts.map(p => ({ from: p.from, chars: p.text.length })), skipped };
 }
+
+// 검증용 원본 이미지: PDF는 페이지를 PNG로 렌더, 이미지 첨부·본문 이미지는 그대로.
+// 표를 글자로만 뽑으면 칸(시설) 구분이 사라져 오독하므로(성남: 헬스장 칸 "일일자유이용 불가"를 수영장으로),
+// "사이트와 다르다"는 결과가 나온 글만 원본을 눈으로 다시 확인시키는 데 쓴다. → [{buf, mediaType}]
+const mediaTypeOf = buf => {
+  const h = buf.slice(0, 12);
+  if (h[0] === 0x89 && h[1] === 0x50) return 'image/png';
+  if (h[0] === 0xff && h[1] === 0xd8) return 'image/jpeg';
+  if (h.slice(0, 3).toString('latin1') === 'GIF') return 'image/gif';
+  if (h.slice(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+  return null;
+};
+export async function collectPostImages(post, max = 6) {
+  const work = mkdtempSync(join(tmpdir(), 'notice-img-'));
+  const out = [];
+  const push = buf => { const mt = buf && mediaTypeOf(buf); if (mt && buf.length <= 4.5 * 1024 * 1024 && out.length < max) out.push({ buf, mediaType: mt }); };
+  try {
+    const pdfStems = new Set(post.attachments.filter(a => a.ext === 'pdf').map(a => stem(a.name)));
+    let n = 0;
+    for (const a of post.attachments) {
+      if (out.length >= max) break;
+      if (a.ext === 'pdf') {
+        const buf = await a.load();
+        if (!buf) continue;
+        const p = join(work, `v${n++}.pdf`);
+        writeFileSync(p, buf);
+        const rr = run('python3', [DOC_TOOLS, 'pdf-render', p, join(work, `vr${n}`)]);
+        for (const pg of (rr.stdout || '').split('\n').filter(Boolean)) push(readFileSync(pg));
+      } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(a.ext) && !pdfStems.has(stem(a.name))) {
+        push(await a.load());
+      }
+    }
+    for (const im of post.images) {
+      if (out.length >= max) break;
+      const buf = await im.load();
+      if (buf && buf.length >= 8 * 1024) push(buf);
+    }
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+  return out;
+}
