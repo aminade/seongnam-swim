@@ -50,5 +50,24 @@ for (const [pool, name, facts] of CASES) {
   b.forEach(i => console.log(`     수정 전: ${i.text}`));
   a.forEach(i => console.log(`     수정 후(남으면 안 됨): ${i.text}`));
 }
+// ── 오탐 방지: 첫 AI 시험(2026-09-22)에서 나온 잘못된 알림 패턴. 현재 사이트에서 조용해야 한다. ──
+const T2 = new Date(2026, 8, 22);
+const month = (from, to, times) => ({ from, to, dayType: '일요일·공휴일', times, adultPrice: 3600, replacesRegular: true, note: '' });
+const QUIET = [
+  // 판교 9월: AI가 월간 일·공휴일 시간표를 특별 시간표로 넣었지만, 같은 글에 24~27 휴장이 있음
+  ['pangyo', '판교 9월 월간표 + 추석/정기휴장', F({ closures: [{ from: '2026-09-24', to: '2026-09-26', reason: '추석' }, { from: '2026-09-27', to: '2026-09-27', reason: '정기휴장' }],
+    specialSchedules: [month('2026-09-01', '2026-09-30', ['09:00~10:50', '13:00~14:50', '16:00~17:50'])] }), new Set()],
+  // 금곡 10월 강습·자유이용 안내: 휴장일은 별도 글(10월 휴장일 및 임시휴장 안내)에만 있음 → 다른 글의 휴장일로 상쇄
+  ['geumgok', '금곡 10월 월간표 + 별도 휴장일 글', F({ specialSchedules: [month('2026-10-01', '2026-10-31', ['10:00~11:50', '13:00~14:50', '16:00~17:50'])] }),
+    new Set(['2026-10-09', '2026-10-10', '2026-10-11', '2026-10-25'])],
+];
+for (const [pool, name, facts, known] of QUIET) {
+  const a = compareFacts(after, pool, facts, T2, known);
+  const ok = a.length === 0;
+  if (!ok) fail++;
+  console.log(`${ok ? '✅' : '❌'} (오탐 방지) ${name}`);
+  a.forEach(i => console.log(`     남으면 안 됨: ${i.text}`));
+}
+
 console.log(fail ? `\n${fail}건 실패` : '\n전부 통과');
 process.exit(fail ? 1 : 0);

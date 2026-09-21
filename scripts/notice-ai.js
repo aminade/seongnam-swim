@@ -30,11 +30,11 @@ const NoticeFacts = z.object({
     adultPrice: z.number().nullable().describe('성인 1회 요금(원), 없으면 null'),
     replacesRegular: z.boolean().describe('true=이 기간엔 평소 자유수영 대신 이 시간표만 운영, false=평소 시간표에 추가로 운영'),
     note: z.string(),
-  })).describe('평소와 다른 기간 한정 자유수영 시간표(특별 운영, 임시 자유수영 등)'),
+  })).describe('공지가 "특정 기간에 평소와 다르게" 운영한다고 명시한 자유수영 시간표만(특별 운영, 임시 자유수영 추가, 공사 후 임시 운영 등). 매달 반복되는 월간 이용시간표는 넣지 않는다'),
   monthlyClosureList: z.object({ year: z.number(), month: z.number() }).nullable()
     .describe('이 글이 특정 달의 수영장 휴장일을 빠짐없이 나열한 안내(예: "10월 휴장일 안내")이면 그 연·월, 아니면 null'),
   unsupported: z.array(z.object({ description: z.string() }))
-    .describe('날짜별 휴장이나 기간 한정 시간표로는 표현할 수 없는 자유수영 운영 변경(예: 레인·정원 축소, 대상 제한, 운영 종료, 장소 이전)'),
+    .describe('평소와 달라진 자유수영 운영 중, 날짜별 휴장이나 기간 한정 시간표로는 표현할 수 없는 것만(예: 특정 요일만 시간 변경, 운영 종료, 장소 이전). 대부분의 공지는 빈 배열'),
 });
 
 const SYSTEM = `너는 성남시 공공 수영장 공지를 읽어 "자유수영 이용자에게 필요한 운영 정보"만 뽑는 도우미다.
@@ -51,7 +51,11 @@ const SYSTEM = `너는 성남시 공공 수영장 공지를 읽어 "자유수영
 - "매월 둘째·넷째 일요일 정기휴장" 같은 일반 규칙만 있고 구체 날짜가 없으면 closures에 넣지 않는다.
   반대로 표·목록에 구체 날짜(예: 11(일) 정기휴장일)가 있으면 closures에 넣는다.
 - 공휴일에 "공휴일 시간표로 운영"하는 표가 있으면 그 날은 휴장이 아니다(필요하면 openDays).
-- 확실하지 않은 것은 넣지 말고, 운영에 영향이 있을 것 같지만 구조화가 어려우면 unsupported에 적는다.`;
+- specialSchedules에는 "N월 일일자유 이용시간 안내" 같은 매달 반복되는 정규 시간표를 절대 넣지 않는다.
+  그런 월간 안내에서는 구체 휴장일(closures)과 monthlyClosureList만 뽑는다.
+- unsupported에 넣지 말 것: 복장·준비물·연령·보호자·단체입장 규정, 접수·추첨·등록 방식, 월 정기권·강습 요금,
+  다른 시설, 구체 날짜 없는 일반 휴관 규칙, OCR이 흐려 불확실하다는 메모, "반영하지 않음" 같은 설명.
+- 확실하지 않은 것은 넣지 않는다. 대부분의 공지에서 specialSchedules·unsupported는 빈 배열이 정상이다.`;
 
 let client;
 export async function interpretNotice({ poolName, title, date, text }) {
@@ -64,7 +68,7 @@ export async function interpretNotice({ poolName, title, date, text }) {
   try {
     const res = await client.messages.parse({
       model: NOTICE_MODEL,
-      max_tokens: 8000,
+      max_tokens: 16000, // 긴 강습 상세 PDF에서 8000은 모자랐다(parse-fail(max_tokens))
       system: SYSTEM,
       messages: [{ role: 'user', content: user }],
       output_config: { format: zodOutputFormat(NoticeFacts) },
