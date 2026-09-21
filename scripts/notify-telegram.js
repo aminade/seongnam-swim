@@ -66,7 +66,7 @@ function buildMessage() {
     L.push(`⚠️ ${b('공식 공지 ↔ 우리 사이트 불일치')}`);
     L.push(i('공식=spo.isdc.co.kr 공지 · 우리=swim.andlife.app'));
     for (const r of diffs) {
-      L.push(`• ${b(r.pool)}`);
+      L.push(`• ${b(r.pool)}${r.url ? ` — <a href="${esc(r.url)}">공지 보기</a>` : ''}`);
       if (r.onlyNotice?.length) L.push(`   ↳ ${esc(r.onlyNotice.map(d => `${d.day}일(${d.reason})`).join(', '))}: 공식=휴장 → 우리 사이트는 운영 중`);
       if (r.onlyOurs?.length)  L.push(`   ↳ ${esc(r.onlyOurs.map(d => `${d.day}일(${d.reason})`).join(', '))}: 우리 사이트=휴관 → 공식 공지엔 없음`);
     }

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>공지 여는 중…</title>
+<!--
+  텔레그램 '공지 보기' 중간 페이지.
+  성남도시개발공사 공지 상세(goNoticeView.do)는 POST로만 열려서(GET은 405) 글 단위 링크가 없다.
+  n.html?b=06&i=0002480 → idx를 POST 폼으로 자동 제출해 해당 글을 바로 연다.
+  b = 게시판 번호(notice0N.do, 실패 시 돌아갈 목록), i = 글 idx. 사이트 본체(index.html)와 무관한 독립 페이지.
+-->
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         background: #faf9f5; color: #333; font: 15px/1.6 -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; box-sizing: border-box; }
+  a { color: #1a6fd1; }
+</style>
+</head>
+<body>
+<div id="msg">공식 공지를 여는 중이에요…</div>
+<form id="f" method="post" action="https://spo.isdc.co.kr/goNoticeView.do"><input type="hidden" name="idx" id="idx"></form>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var idx = q.get('i') || '';
+  var board = q.get('b') || '';
+  var list = /^0[1-9]$/.test(board) ? 'https://spo.isdc.co.kr/notice' + board + '.do' : 'https://spo.isdc.co.kr/';
+  if (!/^\d{1,10}$/.test(idx)) {
+    document.getElementById('msg').innerHTML = '공지 번호가 올바르지 않아요. <a href="' + list + '">게시판으로 이동</a>';
+    return;
+  }
+  document.getElementById('msg').innerHTML = '공식 공지를 여는 중이에요… 안 열리면 <a href="' + list + '">게시판으로 이동</a>';
+  document.getElementById('idx').value = idx;
+  document.getElementById('f').submit();
+})();
+</script>
+<noscript>자바스크립트가 꺼져 있어 바로 열 수 없어요. 성남도시개발공사 체육시설 공지 게시판에서 확인해 주세요.</noscript>
+</body>
+</html>

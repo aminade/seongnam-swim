@@ -593,12 +593,16 @@ document.addEventListener('DOMContentLoaded', function() {
         saturdaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         weekdayPrice:{adult:3600,teen:3000,child:2400}, weekendPrice:{adult:3600,teen:3000,child:2400} },
-      { id:'hwangse', name:'황새울국민체육센터', area:'분당구 수내동', url:'https://spo.isdc.co.kr/programGuide.do', closedWeeks:[1,3], closedOnHoliday:'lunar', feature:null,
+      { id:'hwangse', name:'황새울국민체육센터', area:'분당구 수내동', url:'https://spo.isdc.co.kr/programGuide.do', closedWeeks:[1,3], closedOnHoliday:'lunar', extraClosedRanges:[['2026-10-03','2026-10-05']], /* 임시휴장: 10월 강습 공지 PDF·메인 배너(주차구획 재배치 및 주차면 증설공사 10/3~5) */ feature:null,
         weekdaySlots:[{time:'06:00~06:50',dur:60},{time:'07:00~07:50',dur:60},{time:'10:00~10:50',dur:60},{time:'11:00~11:50',dur:60},{time:'16:00~16:50',dur:60},{time:'17:00~17:50',dur:60},{time:'19:00~19:50',dur:60},{time:'20:00~20:50',dur:60}],
         saturdaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         weekdayPrice:{adult:3000,teen:2500,child:2000}, weekendPrice:{adult:3600,teen:3000,child:2400} },
-      { id:'pangyo', name:'판교스포츠센터', area:'분당구 삼평동', url:'https://spo.isdc.co.kr/pgs_dailyFreeGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', feature:null,
+      { id:'pangyo', name:'판교스포츠센터', area:'분당구 삼평동', url:'https://spo.isdc.co.kr/pgs_dailyFreeGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', notOperating:[{from:'2026-10-01',to:'2026-10-25',label:'10/1-10/25 보수공사 휴장'}], /* 미운영: 8/31 공지(기계·전기설비 보수 및 수영장 환경개선 공사, 전 시설 휴장) */ feature:null,
+        // 특별 운영: 같은 8/31 공지 — 공사 후 10/26~31은 강습 미운영, 평일도 주말처럼 2시간×3타임·3,600원
+        specialSchedules:[{from:'2026-10-26',to:'2026-10-31', note:'10/26~31 강습 미운영 기간 — 평일도 자유수영 3타임 운영',
+          weekdaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
+          weekdayPrice:{adult:3600,teen:3000,child:2400} }],
         weekdaySlots:[{time:'12:00~12:50',dur:60}],
         saturdaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
@@ -610,7 +614,7 @@ document.addEventListener('DOMContentLoaded', function() {
         saturdaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         weekdayPrice:{adult:3600,teen:3000,child:2400}, weekendPrice:{adult:3600,teen:3000,child:2400} },
-      { id:'geumgok', name:'금곡공원국민체육센터', area:'분당구 정자동', url:'https://spo.isdc.co.kr/ggp_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', feature:null,
+      { id:'geumgok', name:'금곡공원국민체육센터', area:'분당구 정자동', url:'https://spo.isdc.co.kr/ggp_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', extraClosedDates:['2026-10-09','2026-10-10'], /* 임시휴장: 9/11 공지(시설개선 공사 10/9~11, 11일은 정기휴장) */ feature:null,
         weekdaySlots:[{time:'06:00~06:50',dur:60},{time:'07:00~07:50',dur:60},{time:'09:00~09:50',dur:60},{time:'10:00~10:50',dur:60},{time:'11:00~11:50',dur:60},{time:'19:00~19:50',dur:60},{time:'20:00~20:50',dur:60}],
         saturdaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
@@ -646,7 +650,8 @@ document.addEventListener('DOMContentLoaded', function() {
         weekdayPrice:null, weekendPrice:null, priceNote:'무료 (시범운영, 7.25~별도 공지시까지 · 일·공휴일 미운영)' },
       // 분당올림픽스포츠센터: 성남도시개발공사가 아닌 한국체육산업개발(국민체육진흥공단 계열)이 운영하는 별도 공공 시설.
       // 공휴일에도 주말과 동일 시간표로 운영(휴관 아님). 정기휴관은 매월 둘째주 일요일뿐(다른 곳처럼 2주 아님).
-      { id:'bdolympic', name:'분당올림픽스포츠센터', area:'분당구 서현동', url:'https://www.ksponco.or.kr/sports/menu.es?mid=b10204000000', closedWeeks:[2], feature:null,
+      // 단, 추석 연휴(2026-09-24~26)는 센터 휴관 — 9/14 공지 확인. 설 연휴 휴관 여부는 미확인(다음 설 전에 확인).
+      { id:'bdolympic', name:'분당올림픽스포츠센터', area:'분당구 서현동', url:'https://www.ksponco.or.kr/sports/menu.es?mid=b10204000000', closedWeeks:[2], closedOnHoliday:'lunar', feature:null,
         weekdaySlots:[{time:'13:00~14:50',dur:120},{time:'18:00~18:50',dur:60}],
         saturdaySlots:[{time:'09:00~12:50',dur:240},{time:'14:00~17:50',dur:240}],
         sundaySlots:[{time:'09:00~12:50',dur:240},{time:'14:00~17:50',dur:240}],
@@ -715,18 +720,25 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return '설·추석 연휴 휴장';
       return full ? `매월 ${pool.closedWeeks.join('·')}번째 일요일 정기휴관` : '정기휴관';
     }
+    // 특별 운영(기간 한정 시간표·요금): specialSchedules:[{from,to,weekdaySlots?,saturdaySlots?,sundaySlots?,weekdayPrice?,weekendPrice?,note?}]
+    // 지정한 필드만 그 기간에 덮어쓰고, 없는 필드는 평소 값을 쓴다.
+    function specialFor(pool,date){ const ds=dateStr(date);
+      return (pool.specialSchedules && pool.specialSchedules.find(r=> ds>=r.from && ds<=r.to)) || null; }
     function isSummer(date){ const m=date.getMonth()+1; return m>=3 && m<=10; } // 하절기 3~10월 / 동절기 11~2월
     // 슬롯 정의가 배열이면 그대로, {summer,winter}면 계절에 맞게 선택
     function resolveSlots(def,date){ if(!def) return []; if(Array.isArray(def)) return def; return isSummer(date) ? def.summer : def.winter; }
     function slotsFor(pool,date){
       const d=date.getDay();
       // 우선순위: 공휴일 > 토·일 > 평일. 공휴일은 요일과 무관하게 일요일 시간표(토요일 공휴일 포함).
-      const def = isHoliday(date) ? pool.sundaySlots : d===6 ? pool.saturdaySlots : d===0 ? pool.sundaySlots : pool.weekdaySlots;
+      const key = isHoliday(date) ? 'sundaySlots' : d===6 ? 'saturdaySlots' : d===0 ? 'sundaySlots' : 'weekdaySlots';
+      const sp = specialFor(pool,date);
+      const def = (sp && sp[key]) || pool[key];
       let slots = resolveSlots(def,date);
       if(d>=1 && d<=5) slots = slots.filter(s=>!s.days || s.days.includes(d)); // 요일 지정 슬롯(예: 월·수·금만 운영)
       return slots;
     }
-    function priceFor(pool,date){ return isWeekendOrHoliday(date)?pool.weekendPrice:pool.weekdayPrice; }
+    function priceFor(pool,date){ const key=isWeekendOrHoliday(date)?'weekendPrice':'weekdayPrice'; const sp=specialFor(pool,date);
+      return (sp && sp[key]) || pool[key]; }
     function mins(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
     function fmtTime(slot){ return slot.time.replace('~','–'); }
     function startStr(slot){ return slot.time.split('~')[0]; }
@@ -852,6 +864,8 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
               html+=`<div class="price"><div class="it"><span>${pool.priceNote||'요금 정보 없음'}</span></div></div>`;
             }
           }
+          const sp=specialFor(pool,selectedDate);
+          if(sp && sp.note) html+=`<div class="pool-note">※ ${sp.note}</div>`;
           if(pool.note) html+=`<div class="pool-note">※ ${pool.note}</div>`;
           html+=`<a href="${pool.url}" target="_blank" class="more">자세히 보기 →</a>`;
           det.innerHTML=html;

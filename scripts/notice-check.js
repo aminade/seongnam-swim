@@ -160,6 +160,10 @@ function findMonthlyNotice(rows, month) {
   return rows.find(r => re.test((r.sbjt || '').replace(/\s+/g, ' '))) || null;
 }
 
+// 공지 '글' 직링크. 공식 상세(goNoticeView.do)는 POST 전용이라 URL이 없어서,
+// 우리 사이트의 중간 페이지(n.html)가 idx를 POST로 자동 제출해 해당 글을 연다.
+const postUrl = (up_id, idx) => `https://swim.andlife.app/n.html?b=${up_id}&i=${encodeURIComponent(idx)}`;
+
 // 최근 WINDOW 시간 내 올라온 임시휴장 공지 감지.
 // 휴장 날짜는 HWP 첨부에 있어 자동추출 불가 → "공지가 떴다"만 알리고 첨부는 사람이 확인.
 // 매일 실행 기준 25h 창(중복/누락 최소). enter_dt는 KST 벽시계.
@@ -181,7 +185,7 @@ function findRecentTempClosures(rows, np) {
         id: np.id, pool: np.name, title,
         postedAt: r.enter_dt.slice(0, 16),
         file: r.file_a || r.file_b || null,
-        url: `https://spo.isdc.co.kr/notice${np.up_id}.do`,
+        url: postUrl(np.up_id, r.idx),
       });
     }
   }
@@ -282,7 +286,7 @@ async function main() {
         if (!onlyNotice.length && !onlyOurs.length) { console.log('일치 ✓'); noticeResults.push({ id: np.id, pool: np.name, status: 'ok' }); }
         else {
           console.log('⚠️ 차이 감지');
-          noticeResults.push({ id: np.id, pool: np.name, status: 'diff', noticeTitle: notice.sbjt,
+          noticeResults.push({ id: np.id, pool: np.name, status: 'diff', noticeTitle: notice.sbjt, url: postUrl(np.up_id, notice.idx),
             onlyNotice: onlyNotice.map(d => ({ day: d, reason: noticeDays[d] })),
             onlyOurs: onlyOurs.map(d => ({ day: d, reason: ourDays[d] })) });
         }
@@ -292,7 +296,7 @@ async function main() {
         if (notice) {
           console.log(`25일 묶음: ${label} 공지 발견 → 확인 필요`);
           monthlyBatch.push({ id: np.id, pool: np.name, title: (notice.sbjt || '').trim(),
-            file: notice.file_a || notice.file_b || null, url: `https://spo.isdc.co.kr/notice${np.up_id}.do` });
+            file: notice.file_a || notice.file_b || null, url: postUrl(np.up_id, notice.idx) });
         } else {
           console.log(`25일 묶음: ${label} 공지 아직 없음`);
           monthlyBatch.push({ id: np.id, pool: np.name, missing: true, url: `https://spo.isdc.co.kr/notice${np.up_id}.do` });
