@@ -6,6 +6,11 @@ on:
     # 정각(:00)은 GitHub 스케줄러가 붐벼 실제 시작이 최대 100분까지 밀렸다(21:41·22:40 관측) → 어중간한 분으로.
     - cron: '17 12 * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '테스트: 텔레그램 발송 없이 로그로만 확인'
+        type: boolean
+        default: false
 
 jobs:
   check:
@@ -44,12 +49,19 @@ jobs:
         with:
           node-version: '22'
 
+      # 공지 해석용 Claude SDK(scripts/package.json). 사이트(Vercel) 배포와 섞이지 않게 scripts/ 안에 둔다.
+      - name: 스크립트 의존성 설치
+        run: npm ci --prefix scripts --no-audit --no-fund
+
       - name: 시간표 크롤링 & 비교
         id: check
         run: node scripts/check-schedule.js
         continue-on-error: true
 
       - name: 공지 게시판 & 공휴일 점검
+        # 첨부 글자 추출은 전부 맥 로컬: 시스템 python3(pypdfium2·pdfplumber·pyhwp) + macOS Vision OCR(swiftc).
+        # setup-python 을 쓰면 그 인터프리터엔 위 패키지가 없어 오히려 깨지므로 추가하지 않는다.
+        # 글별 처리 상태는 러너 계정의 ~/.swim-notice/state.json 에 남는다(맥이 바뀌면 첫 실행처럼 동작).
         id: notice
         run: node scripts/notice-check.js
         continue-on-error: true
@@ -58,6 +70,11 @@ jobs:
           # 매월 말일 TO-DO의 '변경사항' 출처(토큰 잠금 Apps Script 프록시 URL, 토큰 포함).
           # 미설정이면 TO-DO는 "변경사항 시트 미연동" 안내로만 발송.
           SEO_CHANGES_CSV_URL: ${{ secrets.SEO_CHANGES_CSV_URL }}
+          # 공지 텍스트 해석(휴장일·특별 시간표 구조화). 미설정이면 "AI 키 미설정" 한 줄 알림으로 강등.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTICE_MODEL: claude-sonnet-5
+          # 테스트 실행은 상태 파일을 저장하지 않는다(실제 매일 점검이 같은 글을 다시 읽을 수 있게).
+          NOTICE_DRY_STATE: ${{ inputs.dry_run && '1' || '' }}
 
       - name: 변경 감지 시 이슈 생성
         id: issue
@@ -147,3 +164,4 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PREV_RUN_AT: ${{ steps.last.outputs.prev_run_at }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}

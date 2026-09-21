@@ -622,6 +622,10 @@ document.addEventListener('DOMContentLoaded', function() {
       // ===== 성남시청소년청년재단 유스센터 수영장 =====
       // 주말은 계절제(하절기 3~10월 / 동절기 11~2월)로 부제 수가 달라 saturdaySlots를 {summer,winter}로 구성.
       { id:'yc_yatap', name:'야탑유스센터', area:'분당구 야탑동', url:'https://www.snyouth.or.kr/fmcs/158', closedWeeks:[1,3], closedOnHoliday:'all', feature:'유스센터',
+        notOperating:[{from:'2026-09-01',to:'2026-09-30',label:'9/1-9/30 주차장 공사로 수영장 휴장'}], /* 미운영: 8/14 공지(주차장 바닥 방수공사, 수영장 이용불가) */
+        // 특별 운영: 8/19 공지 — 10/1부터 '별도 안내 시까지'(2027 초등생존수영교육 시작 전) 평일 오전 임시 자유수영 2타임 추가
+        specialSchedules:[{from:'2026-10-01', note:'평일 오전 임시 자유수영(10시·11시) 운영 중 — 별도 안내 시까지',
+          weekdaySlots:[{time:'08:00~08:50',dur:50},{time:'10:00~10:50',dur:50},{time:'11:00~11:50',dur:50},{time:'12:00~12:50',dur:50},{time:'20:00~20:50',dur:50}] }],
         weekdaySlots:[{time:'08:00~08:50',dur:50},{time:'12:00~12:50',dur:50},{time:'20:00~20:50',dur:50}],
         saturdaySlots:{
           summer:[{time:'06:30~08:00',dur:90},{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90},{time:'17:30~19:00',dur:90}],
@@ -720,10 +724,10 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return '설·추석 연휴 휴장';
       return full ? `매월 ${pool.closedWeeks.join('·')}번째 일요일 정기휴관` : '정기휴관';
     }
-    // 특별 운영(기간 한정 시간표·요금): specialSchedules:[{from,to,weekdaySlots?,saturdaySlots?,sundaySlots?,weekdayPrice?,weekendPrice?,note?}]
-    // 지정한 필드만 그 기간에 덮어쓰고, 없는 필드는 평소 값을 쓴다.
+    // 특별 운영(기간 한정 시간표·요금): specialSchedules:[{from,to?,weekdaySlots?,saturdaySlots?,sundaySlots?,weekdayPrice?,weekendPrice?,note?}]
+    // 지정한 필드만 그 기간에 덮어쓰고, 없는 필드는 평소 값을 쓴다. to 생략 = '별도 안내 시까지'(종료일 미정).
     function specialFor(pool,date){ const ds=dateStr(date);
-      return (pool.specialSchedules && pool.specialSchedules.find(r=> ds>=r.from && ds<=r.to)) || null; }
+      return (pool.specialSchedules && pool.specialSchedules.find(r=> ds>=r.from && (!r.to || ds<=r.to))) || null; }
     function isSummer(date){ const m=date.getMonth()+1; return m>=3 && m<=10; } // 하절기 3~10월 / 동절기 11~2월
     // 슬롯 정의가 배열이면 그대로, {summer,winter}면 계절에 맞게 선택
     function resolveSlots(def,date){ if(!def) return []; if(Array.isArray(def)) return def; return isSummer(date) ? def.summer : def.winter; }

@@ -1,0 +1,10 @@
+{
+  "name": "seongnam-swim",
+  "private": true,
+  "type": "module",
+  "description": "성남 자유수영 사이트 크롤러·공지 감시 스크립트",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
+    "zod": "^4.6.5"
+  }
+}

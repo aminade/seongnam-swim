@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 점검 결과를 텔레그램으로 발송.
- * - /tmp/notice-check.json (공지 비교 + 공휴일 리마인더)
+ * - /tmp/notice-check.json (공지 감시 + 공휴일 리마인더 + 말일 TO-DO)
  * - /tmp/schedule-changes.json (기존 program-guide 크롤 결과, 있으면 함께 요약)
  *
  * 인자: node notify-telegram.js [issueNumber]
@@ -59,42 +59,42 @@ function buildMessage() {
     }
   }
 
-  // ── 공지 게시판 비교 ──
-  const diffs = (nc?.noticeResults || []).filter(r => r.status === 'diff');
-  if (diffs.length) {
+  // ── 공지 감시 (모든 게시판 새 글·수정 글 → 로컬 추출 → AI 해석 → 사이트 대조) ──
+  const w = nc?.watch || { fresh: [], pending: [], needsImpl: [], manual: [], errors: [] };
+  const link = (e) => `<a href="${esc(e.url)}">공지 보기</a>`;
+  const head = (e) => `• ${b(e.poolName)} 「${esc(e.title)}」${e.edited ? i(' (수정됨)') : ''} — ${link(e)}`;
+  if (w.fresh.length) {
     L.push('');
-    L.push(`⚠️ ${b('공식 공지 ↔ 우리 사이트 불일치')}`);
-    L.push(i('공식=spo.isdc.co.kr 공지 · 우리=swim.andlife.app'));
-    for (const r of diffs) {
-      L.push(`• ${b(r.pool)}${r.url ? ` — <a href="${esc(r.url)}">공지 보기</a>` : ''}`);
-      if (r.onlyNotice?.length) L.push(`   ↳ ${esc(r.onlyNotice.map(d => `${d.day}일(${d.reason})`).join(', '))}: 공식=휴장 → 우리 사이트는 운영 중`);
-      if (r.onlyOurs?.length)  L.push(`   ↳ ${esc(r.onlyOurs.map(d => `${d.day}일(${d.reason})`).join(', '))}: 우리 사이트=휴관 → 공식 공지엔 없음`);
+    L.push(`📢 ${b('새 공지 — 사이트 반영 필요')}`);
+    for (const f of w.fresh) {
+      L.push(head(f));
+      for (const it of f.items) L.push(`   ↳ ${esc(it.text)}`);
     }
+    L.push(i('맞으면 알려주세요. 사이트에 반영합니다.'));
   }
-
-  // ── 임시휴장 공지 (즉시 · 첨부 HWP라 날짜 자동추출 불가 → "떴음"만 알림) ──
-  const temps = nc?.tempClosures || [];
-  if (temps.length) {
+  if (w.needsImpl.length) {
     L.push('');
-    L.push(`🆕 ${b('임시휴장 공지 떴음 — 첨부 확인 필요')}`);
-    for (const t of temps) {
-      L.push(`• ${b(t.pool)} (${esc(t.postedAt)})`);
-      L.push(`   ↳ 날짜는 첨부에 있음: <a href="${esc(t.url)}">공지 보기</a>${t.file ? ` · ${esc(t.file)}` : ''}`);
-    }
-    L.push(i('날짜 확인 후 알려주시면 사이트에 반영합니다.'));
+    L.push(`🛠 ${b('새 구현 필요 — 지금 사이트 구조로 표현 못 함')}`);
+    for (const n of w.needsImpl) { L.push(head(n)); L.push(`   ↳ ${esc(n.description)}`); }
   }
-
-  // ── 25일 묶음: 이미지/HWP 시설 다음 달 휴장 공지 (한 번에 확인) ──
-  const batch = nc?.monthlyBatch || [];
-  if (batch.length) {
+  if (w.pending.length) {
     L.push('');
-    L.push(`📌 ${b(`${label} 휴장 공지 확인 필요`)}`);
-    for (const m of batch) {
-      if (m.missing) L.push(`• ${b(m.pool)}: 아직 미게시 — <a href="${esc(m.url)}">게시판</a>`);
-      else L.push(`• ${b(m.pool)}: <a href="${esc(m.url)}">공지 보기</a>${m.file ? ` · ${esc(m.file)}` : ''}`);
-    }
-    L.push(i('이미지/HWP라 자동 파싱 불가 — 열어 확인 후 알려주시면 반영합니다.'));
+    L.push(`⏳ ${b('이전에 알린 공지 — 아직 사이트 미반영')}`);
+    for (const f of w.pending) { L.push(head(f)); for (const it of f.items) L.push(`   ↳ ${esc(it.text)}`); }
   }
+  // AI 키가 없어 해석 못 한 글은 한 줄로(첫 실행엔 수십 건이라 목록으로 보내면 폭탄이 된다).
+  const noKey = w.manual.filter(m => m.reason.startsWith('AI 키 미설정'));
+  const manual = w.manual.filter(m => !m.reason.startsWith('AI 키 미설정'));
+  if (noKey.length) {
+    L.push('');
+    L.push(`🔑 ${b('AI 키 미설정')} — 운영 관련 새 글 ${noKey.length}건을 해석하지 못했어요. 키 등록 후 다음 실행에서 자동으로 다시 읽어요.`);
+  }
+  if (manual.length) {
+    L.push('');
+    L.push(`🔎 ${b('직접 확인 필요')}`);
+    for (const m of manual) { L.push(head(m)); L.push(`   ↳ ${esc(m.reason)}`); }
+  }
+  if (w.error) { L.push(''); L.push(`⚠️ 공지 감시 오류: ${esc(w.error)}`); }
 
   const isMonthly = !!nc?.target?.isFirstOfMonth;
   const hi = nc?.holidayInfo;
@@ -123,10 +123,10 @@ function buildMessage() {
   };
   addFails(sc?.errors, '시간표');
   addFails(sc?.youthErrors, '시간표');
-  addFails((nc?.noticeResults || []).filter(r => r.status === 'error'), '공지');
+  addFails(w.errors, '공지');
   const errs = [...failStages].map(([pool, stages]) => `${pool}(${[...stages].join('·')})`);
 
-  const anyAlert = !!(changed.length || youthChanged.length || diffs.length || temps.length || batch.length || hi?.missing?.length || errs.length || missed);
+  const anyAlert = !!(changed.length || youthChanged.length || w.fresh.length || w.pending.length || w.needsImpl.length || w.manual.length || w.error || hi?.missing?.length || errs.length || missed);
 
   // ── 이상 없음 (월초 다이제스트에서만 표기; 알림만 모드에선 애초에 발송 안 함) ──
   if (isMonthly && !anyAlert) { L.push(''); L.push('✅ 시간표·공지 이상 없음'); }
@@ -203,7 +203,7 @@ async function main() {
     for (const r of changed) for (const c of r.changes) lines.push(`   • ${esc(r.pool)}: ${esc(c.desc)}`);
     const url = repo ? `https://github.com/${repo}/issues/${issue}` : null;
     if (url) lines.push(`👉 반영하려면 <a href="${esc(url)}">이 이슈</a>에서 <code>/confirm</code> 댓글 (오탐이면 <code>/reject</code>)`);
-    lines.push(i('공지 차이·공휴일 확인 항목은 자동 반영되지 않습니다(수동).'));
+    lines.push(i('공지·공휴일 항목은 자동 반영되지 않습니다(수동).'));
   }
 
   // 점검 다이제스트: 월초(1일)거나 알릴 것이 있을 때만. (말일에 이것 없이 TO-DO만 갈 수 있음)
