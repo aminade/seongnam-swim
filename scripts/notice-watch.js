@@ -26,6 +26,9 @@ const LOOKBACK_DAYS = +(process.env.NOTICE_LOOKBACK_DAYS || 45);
 const HORIZON_DAYS = 120; // 이만큼 먼 미래까지만 대조
 
 // 운영에 영향이 있을 법한 글만 AI로 보낸다(나머지는 행사·모집 등).
+// 제목만으로 수영과 무관한 게 분명한 글(첫 AI 시험에서 전부 "자유수영 무관"이었던 유형). 제목에 수영·휴장 등이 있으면 예외.
+const OFFTOPIC_TITLE = /강사|합격자|야구장|테니스|배드민턴|주경기장|빙상|스케이트|원데이클래스|로봇|동글|청년|캠프|도서관|추첨\s*(결과|당첨)|당첨\s*안내|탁구|필라테스/;
+const POOL_TITLE = /수영|휴\s*[장관]|자유\s*이용|임시|공사|운영\s*(중단|변경|안내)/;
 const OPS_RE = /휴\s*[장관]|휴\s*무|미\s*운\s*영|운영\s*(중단|중지|종료|변경|조정|안내)|임시|공사|추석|설\s*연휴|명절|자유\s*수영|자유\s*이용|특별\s*운영|단축/;
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
@@ -189,6 +192,7 @@ export async function watchNotices({ site, log = console.log, today = new Date()
 
     const ex = await extractPostText(p);
     if (!OPS_RE.test(`${p.title}\n${ex.text}`)) { entry.status = 'not-ops'; continue; }
+    if (OFFTOPIC_TITLE.test(p.title) && !POOL_TITLE.test(p.title)) { entry.status = 'offtopic'; continue; }
     stats.ops++;
     if (ex.skipped.length) log(`      건너뜀: ${ex.skipped.map(s => `${s.name}(${s.reason})`).join(', ')}`);
 
