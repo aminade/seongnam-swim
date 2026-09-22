@@ -15,6 +15,10 @@ on:
         description: '테스트: 이 정규식에 맞는 글만 다시 읽기(제목·수영장명). 비우면 전체'
         type: string
         default: ''
+      test_script:
+        description: '테스트: scripts/test/ 아래 이 파일만 실행하고 끝(예 verify-claims.live.js)'
+        type: string
+        default: ''
 
 jobs:
   check:
@@ -57,8 +61,21 @@ jobs:
       - name: 스크립트 의존성 설치
         run: npm ci --prefix scripts --no-audit --no-fund
 
+      # 수동 실행 전용: 지정한 테스트 스크립트만 돌리고 이후 단계는 모두 건너뛴다(API 키가 필요한 실전 테스트용).
+      - name: 테스트 스크립트 실행
+        if: inputs.test_script != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
+          NOTICE_MODEL: claude-sonnet-5
+          TEST_SCRIPT: ${{ inputs.test_script }}
+        run: |
+          [[ "$TEST_SCRIPT" =~ ^[a-zA-Z0-9._-]+\.js$ ]] || { echo "잘못된 파일명"; exit 1; }
+          node "scripts/test/$TEST_SCRIPT"
+
       - name: 시간표 크롤링 & 비교
         id: check
+        if: inputs.test_script == ''   # 예약 실행에선 inputs가 null → ''와 같게 취급됨
         run: node scripts/check-schedule.js
         continue-on-error: true
 
@@ -67,6 +84,7 @@ jobs:
         # setup-python 을 쓰면 그 인터프리터엔 위 패키지가 없어 오히려 깨지므로 추가하지 않는다.
         # 글별 처리 상태는 러너 계정의 ~/.swim-notice/state.json 에 남는다(맥이 바뀌면 첫 실행처럼 동작).
         id: notice
+        if: inputs.test_script == ''
         run: node scripts/notice-check.js
         continue-on-error: true
         env:
@@ -163,7 +181,7 @@ jobs:
             core.setOutput('number', number);   // 텔레그램 메시지의 /confirm 링크용
 
       - name: 텔레그램 발송 (알림 + 공휴일 리마인더)
-        if: always()   # 이상 없음이어도 월간 다이제스트로 발송(공휴일 리마인더 포함)
+        if: always() && inputs.test_script == ''   # 이상 없음이어도 월간 다이제스트로 발송(공휴일 리마인더 포함)
         run: node scripts/notify-telegram.js ${{ steps.issue.outputs.number }}
         continue-on-error: true
         env:
