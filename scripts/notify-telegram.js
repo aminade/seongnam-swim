@@ -82,21 +82,42 @@ function buildMessage() {
     L.push(`⏳ ${b('이전에 알린 공지 — 아직 사이트 미반영')}`);
     for (const f of w.pending) { L.push(head(f)); for (const it of f.items) L.push(`   ↳ ${esc(it.text)}`); }
   }
-  // AI 키가 없어 해석 못 한 글은 한 줄로(첫 실행엔 수십 건이라 목록으로 보내면 폭탄이 된다).
-  const noKey = w.manual.filter(m => m.reason.startsWith('AI 키 미설정'));
-  const manual = w.manual.filter(m => !m.reason.startsWith('AI 키 미설정'));
-  if (w.aiBlocked) {
+  // ── 무료 모드(AI 미사용·키 문제·크레딧 소진) ──
+  // 해석은 못 해도 "운영 관련 새 글"까지는 로컬에서 걸러냈으므로 링크로 안내한다.
+  // 같은 글은 한 번만 안내한다(상태에 기록). 크레딧이 채워지면 다음 점검부터 자동으로 해석 모드로 복귀.
+  const selfCheck = w.manual.filter(m => m.selfCheck);
+  const manual = w.manual.filter(m => !m.selfCheck);
+  if (w.aiBlockedKind === 'credit') {
     L.push('');
-    L.push(`🔑 ${b('AI 호출 실패')} — 운영 관련 새 글 ${noKey.length}건을 해석하지 못했어요. 문제가 풀리면 다음 실행에서 자동으로 다시 읽어요.`);
-    L.push(`   ↳ ${esc(String(w.aiBlocked).slice(0, 300))}`);
-  } else if (noKey.length) {
+    L.push(`💳 ${b('API 크레딧이 떨어졌어요')} — 자동 해석이 멈추고 링크 안내로 전환했어요.`);
+    L.push(`   ↳ <a href="https://console.anthropic.com/settings/billing">충전하기</a> · 충전하면 다음 점검부터 자동으로 되돌아와요`);
+  } else if (w.aiBlocked) {
     L.push('');
-    L.push(`🔑 ${b('AI 키 미설정')} — 운영 관련 새 글 ${noKey.length}건을 해석하지 못했어요. 키 등록 후 다음 실행에서 자동으로 다시 읽어요.`);
+    L.push(`🔑 ${b('AI 해석 불가')} — 링크 안내로 전환했어요.`);
+    L.push(`   ↳ ${esc(String(w.aiBlocked).slice(0, 200))}`);
+  } else if (!w.hasKey && selfCheck.length) {
+    L.push('');
+    L.push(`🔑 ${b('AI 미사용 모드')} — 아래 글은 직접 확인해 주세요.`);
+  }
+  if (selfCheck.length) {
+    L.push('');
+    L.push(`📄 ${b(`확인할 새 공지 ${selfCheck.length}건`)}`);
+    for (const m of selfCheck.slice(0, 12)) L.push(`• ${b(m.poolName)} 「${esc(m.title)}」 — ${link(m)}`);
+    if (selfCheck.length > 12) L.push(i(`외 ${selfCheck.length - 12}건 (다음 점검에서 다시 알리지 않아요)`));
+    L.push(i('휴장·운영 변경이 있으면 알려주세요. 사이트에 반영합니다.'));
   }
   if (manual.length) {
     L.push('');
     L.push(`🔎 ${b('직접 확인 필요')}`);
     for (const m of manual) { L.push(head(m)); L.push(`   ↳ ${esc(m.reason)}`); }
+  }
+
+  // 잔액 미리 경고(추정치). 소진 시엔 위의 💳 안내가 대신 나간다.
+  if (w.credit && w.aiBlockedKind !== 'credit' && w.credit.left <= 1) {
+    L.push('');
+    L.push(`⚠️ ${b('API 잔액 추정 $' + w.credit.left.toFixed(2))} — 곧 자동 해석이 멈춰요. `
+      + `<a href="https://console.anthropic.com/settings/billing">충전하기</a>`);
+    L.push(i(`충전액 $${w.credit.start} 기준 누적 사용 추정 $${w.credit.spent.toFixed(2)} · 정확한 금액은 콘솔 기준`));
   }
   if (w.error) { L.push(''); L.push(`⚠️ 공지 감시 오류: ${esc(w.error)}`); }
   if (w.deferred) L.push(i(`(AI 해석 상한에 걸려 ${w.deferred}건은 다음 점검에서 읽습니다)`));

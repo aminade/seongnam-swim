@@ -13,6 +13,17 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 
 export const NOTICE_MODEL = process.env.NOTICE_MODEL || 'claude-sonnet-5';
 
+// 모델별 100만 토큰당 단가(USD). 사용액을 '추정'해 잔액 경고에 쓴다(정확한 청구액은 콘솔 기준).
+const PRICES = {
+  'claude-sonnet-5': { in: 2, out: 10 },
+  'claude-haiku-4-5': { in: 1, out: 5 },
+  'claude-opus-5': { in: 5, out: 25 },
+};
+export function estimateCost(usage, model = NOTICE_MODEL) {
+  const p = PRICES[model] || PRICES['claude-sonnet-5'];
+  return ((usage?.input_tokens || 0) * p.in + (usage?.output_tokens || 0) * p.out) / 1e6;
+}
+
 const Day = z.string().describe('YYYY-MM-DD');
 const NoticeFacts = z.object({
   relevant: z.boolean().describe('이 수영장의 자유수영 이용(운영일·시간·요금·이용 가능 여부)에 영향을 주는 구체적 정보가 있으면 true'),
@@ -77,14 +88,16 @@ export async function interpretNotice({ poolName, title, date, text }) {
     if (!res.parsed_output) return { ok: false, reason: `parse-fail(${res.stop_reason})` };
     return { ok: true, facts: res.parsed_output, usage: res.usage };
   } catch (e) {
-    // keyProblem=true 면 키·계정 문제라 다른 글도 똑같이 실패한다 → 호출부가 이번 실행의 AI 호출을 멈춘다.
+    // keyProblem=true 면 키·잔액 문제라 다른 글도 똑같이 실패한다 → 호출부가 이번 실행의 AI 호출을 멈추고
+    // "링크만 보내는 무료 모드"로 내려간다. kind는 알림 문구(충전 안내 등)를 고르는 데 쓴다.
     const msg = String(e?.error?.error?.message || e.message || '');
-    if (e instanceof Anthropic.AuthenticationError) return { ok: false, keyProblem: true, reason: `API 키 오류: ${msg}` };
-    if (e instanceof Anthropic.PermissionDeniedError) return { ok: false, keyProblem: true, reason: `권한 없음: ${msg}` };
+    if (/credit balance|insufficient (credit|funds)|billing/i.test(msg)) return { ok: false, keyProblem: true, kind: 'credit', reason: `크레딧 부족: ${msg}` };
+    if (e instanceof Anthropic.AuthenticationError) return { ok: false, keyProblem: true, kind: 'auth', reason: `API 키 오류: ${msg}` };
+    if (e instanceof Anthropic.PermissionDeniedError) return { ok: false, keyProblem: true, kind: 'auth', reason: `권한 없음: ${msg}` };
     if (e instanceof Anthropic.RateLimitError) return { ok: false, reason: '요청 한도 초과' };
     if (e instanceof Anthropic.APIError) {
-      const keyProblem = e.status === 400 && /api key|workspace|credit balance|billing/i.test(msg);
-      return { ok: false, keyProblem, reason: `API ${e.status}: ${msg}` };
+      const keyProblem = e.status === 400 && /api key|workspace/i.test(msg);
+      return { ok: false, keyProblem, kind: keyProblem ? 'key' : 'other', reason: `API ${e.status}: ${msg}` };
     }
     return { ok: false, reason: e.message };
   }

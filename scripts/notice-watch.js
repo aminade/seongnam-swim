@@ -19,7 +19,7 @@ import { homedir } from 'os';
 import { dirname, join } from 'path';
 import { collectPosts, htmlToText } from './notice-sources.js';
 import { extractPostText, collectPostImages } from './notice-extract.js';
-import { interpretNotice, verifyClaims, NOTICE_MODEL } from './notice-ai.js';
+import { interpretNotice, verifyClaims, estimateCost, NOTICE_MODEL } from './notice-ai.js';
 
 export const STATE_PATH = process.env.NOTICE_STATE || join(homedir(), '.swim-notice', 'state.json');
 const LOOKBACK_DAYS = +(process.env.NOTICE_LOOKBACK_DAYS || 45);
@@ -171,8 +171,9 @@ export async function watchNotices({ site, log = console.log, today = new Date()
   const fresh = [];       // 이번에 새로 해석해서 사이트와 다른 점이 나온 글
   const manual = [];      // 자동 판독 불가 → 직접 확인
   const needsImpl = [];   // 새 구현 필요(이번에 처음 나온 것만)
-  const stats = { posts: posts.length, read: 0, ops: 0, ai: 0, inputTokens: 0, outputTokens: 0 };
-  let aiBlocked = null; // 키·계정 문제로 AI를 못 쓰게 되면 사유(이후 글은 호출하지 않음)
+  const stats = { posts: posts.length, read: 0, ops: 0, ai: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+  let aiBlocked = null;     // 키·잔액 문제로 AI를 못 쓰게 되면 사유(이후 글은 호출하지 않음)
+  let aiBlockedKind = null; // 'credit' | 'auth' | 'key' — 알림 문구용
   let deferred = 0;     // 상한(건수·시간)에 걸려 다음 실행으로 미룬 글 수
   const deadline = Date.now() + TIME_BUDGET_MS;
   // 글 하나 끝날 때마다 저장한다. 맥이 밤에 느려져 실행이 중간에 잘리는 일이 있었는데(2026-09-22~24),
@@ -211,16 +212,22 @@ export async function watchNotices({ site, log = console.log, today = new Date()
       continue;
     }
     if (!hasKey || aiBlocked) {
-      entry.status = 'no-key'; // 키가 생기거나 문제가 풀리면 다음 실행에서 다시 읽는다
-      manual.push({ ...entry, reason: 'AI 키 미설정 — 휴장/운영 관련 단어가 있는 글' });
+      // 무료 모드: 해석은 못 하지만 "운영 관련 새 글"이라는 것까지는 로컬에서 가려냈다 → 링크로 안내.
+      // 같은 글을 매일 다시 알리지 않도록 한 번 안내한 글은 표시해 둔다(키가 돌아오면 다시 해석).
+      entry.status = 'no-key';
+      if (!old?.listed) { manual.push({ ...entry, reason: 'AI 미사용 — 직접 확인 필요', selfCheck: true }); entry.listed = true; }
+      else entry.listed = true;
+      checkpoint();
       continue;
     }
     const r = await interpretNotice({ poolName: p.poolName, title: p.title, date: p.date, text: ex.text });
     if (!r.ok && r.keyProblem) {
       aiBlocked = r.reason;
-      log(`      ⛔ AI 사용 불가 — 이번 실행은 AI 호출 중단: ${r.reason}`);
+      aiBlockedKind = r.kind || 'other';
+      log(`      ⛔ AI 사용 불가 — 이번 실행은 링크 안내로 전환: ${r.reason}`);
       entry.status = 'no-key';
-      manual.push({ ...entry, reason: 'AI 키 미설정 — 휴장/운영 관련 단어가 있는 글' });
+      if (!old?.listed) { manual.push({ ...entry, reason: 'AI 미사용 — 직접 확인 필요', selfCheck: true }); entry.listed = true; }
+      checkpoint();
       continue;
     }
     if (!r.ok) {
@@ -231,6 +238,7 @@ export async function watchNotices({ site, log = console.log, today = new Date()
     stats.ai++;
     stats.inputTokens += r.usage?.input_tokens || 0;
     stats.outputTokens += r.usage?.output_tokens || 0;
+    stats.costUsd += estimateCost(r.usage);
     entry.status = r.facts.relevant ? 'relevant' : 'irrelevant';
     entry.facts = r.facts;
     entry.skipped = ex.skipped;
@@ -259,6 +267,7 @@ export async function watchNotices({ site, log = console.log, today = new Date()
       if (v.ok) {
         stats.inputTokens += v.usage?.input_tokens || 0;
         stats.outputTokens += v.usage?.output_tokens || 0;
+        stats.costUsd += estimateCost(v.usage);
         const wrong = new Set(v.verdicts.filter(x => !x.correct).map(x => x.index));
         for (const x of v.verdicts.filter(x => !x.correct)) log(`      ✗ 원본 대조로 제외: ${claims[x.index]} — ${x.why}`);
         items = items.filter((_, i) => !wrong.has(i));
@@ -284,7 +293,11 @@ export async function watchNotices({ site, log = console.log, today = new Date()
   // 오래된 기록 정리(글이 1년 넘게 지난 항목)
   const yearAgo = ymd(new Date(today.getTime() - 365 * 864e5));
   for (const [k, e] of Object.entries(state.posts)) if (e.date && e.date < yearAgo) delete state.posts[k];
+  // 누적 사용액(추정). NOTICE_CREDIT_START(충전액 USD)를 넣어 두면 남은 잔액을 추정해 미리 경고한다.
+  state.spendUsd = +((state.spendUsd || 0) + stats.costUsd).toFixed(4);
   checkpoint();
+  const start = parseFloat(process.env.NOTICE_CREDIT_START || '');
+  const credit = Number.isFinite(start) ? { start, spent: state.spendUsd, left: +(start - state.spendUsd).toFixed(2) } : null;
 
-  return { firstRun, hasKey, aiBlocked, deferred, model: NOTICE_MODEL, fresh, pending, needsImpl, manual, errors, stats };
+  return { firstRun, hasKey, aiBlocked, aiBlockedKind, deferred, credit, model: NOTICE_MODEL, fresh, pending, needsImpl, manual, errors, stats };
 }

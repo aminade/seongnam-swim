@@ -106,6 +106,9 @@ jobs:
           # 한 번 실행에서 AI로 읽을 글 수 상한(비용 안전장치). 남은 글은 다음 날 이어서 읽는다.
           NOTICE_MAX_AI: '20'
           NOTICE_TIME_BUDGET_MIN: '45'
+          # 충전액(USD). 누적 사용액을 추정해 잔액이 $1 이하로 내려가면 텔레그램으로 미리 알린다.
+          # 추가 충전하면 이 값을 늘리고, 사용 누계는 ~/.swim-notice/state.json 의 spendUsd 를 고치면 된다.
+          NOTICE_CREDIT_START: '5'
 
       - name: 변경 감지 시 이슈 생성
         id: issue
