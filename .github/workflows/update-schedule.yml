@@ -27,6 +27,9 @@ jobs:
     # ⚠️ 공개 저장소이므로 이 워크플로에 pull_request 계열 트리거를 절대 추가하지 말 것
     #    (포크가 맥에서 임의 코드를 실행할 수 있게 된다). schedule/workflow_dispatch는 포크에서 발동 불가.
     runs-on: [self-hosted, seongnam-mac]
+    # 밤에 맥이 절전으로 들어가면 한없이 느려지다 취소된다(2026-09-22~24: 글 하나에 69분, 2~3시간 만에 취소).
+    # caffeinate로 잠들지 않게 하고, 그래도 늦어지면 2시간에서 끊는다.
+    timeout-minutes: 120
     permissions:
       contents: write
       issues: write
@@ -76,7 +79,7 @@ jobs:
       - name: 시간표 크롤링 & 비교
         id: check
         if: inputs.test_script == ''   # 예약 실행에선 inputs가 null → ''와 같게 취급됨
-        run: node scripts/check-schedule.js
+        run: caffeinate -dimsu node scripts/check-schedule.js
         continue-on-error: true
 
       - name: 공지 게시판 & 공휴일 점검
@@ -85,7 +88,7 @@ jobs:
         # 글별 처리 상태는 러너 계정의 ~/.swim-notice/state.json 에 남는다(맥이 바뀌면 첫 실행처럼 동작).
         id: notice
         if: inputs.test_script == ''
-        run: node scripts/notice-check.js
+        run: caffeinate -dimsu node scripts/notice-check.js
         continue-on-error: true
         env:
           HOLIDAY_API_KEY: ${{ secrets.HOLIDAY_API_KEY }}
@@ -100,6 +103,9 @@ jobs:
           # 테스트 실행은 상태 파일을 저장하지 않는다(실제 매일 점검이 같은 글을 다시 읽을 수 있게).
           NOTICE_DRY_STATE: ${{ inputs.dry_run && '1' || '' }}
           NOTICE_ONLY: ${{ inputs.only }}
+          # 한 번 실행에서 AI로 읽을 글 수 상한(비용 안전장치). 남은 글은 다음 날 이어서 읽는다.
+          NOTICE_MAX_AI: '20'
+          NOTICE_TIME_BUDGET_MIN: '45'
 
       - name: 변경 감지 시 이슈 생성
         id: issue

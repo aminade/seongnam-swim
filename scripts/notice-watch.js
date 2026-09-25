@@ -23,6 +23,10 @@ import { interpretNotice, verifyClaims, NOTICE_MODEL } from './notice-ai.js';
 
 export const STATE_PATH = process.env.NOTICE_STATE || join(homedir(), '.swim-notice', 'state.json');
 const LOOKBACK_DAYS = +(process.env.NOTICE_LOOKBACK_DAYS || 45);
+// 한 번 실행에서 AI로 해석할 글 수 상한(비용 안전장치). 남은 글은 다음 실행에서 이어서 읽는다.
+const MAX_AI = +(process.env.NOTICE_MAX_AI || 20);
+// 글 읽기에 쓸 시간 상한(분). 넘으면 남은 글은 다음 실행으로 미루고 알림은 정상 발송한다.
+const TIME_BUDGET_MS = +(process.env.NOTICE_TIME_BUDGET_MIN || 45) * 60000;
 const HORIZON_DAYS = 120; // 이만큼 먼 미래까지만 대조
 
 // 운영에 영향이 있을 법한 글만 AI로 보낸다(나머지는 행사·모집 등).
@@ -169,6 +173,11 @@ export async function watchNotices({ site, log = console.log, today = new Date()
   const needsImpl = [];   // 새 구현 필요(이번에 처음 나온 것만)
   const stats = { posts: posts.length, read: 0, ops: 0, ai: 0, inputTokens: 0, outputTokens: 0 };
   let aiBlocked = null; // 키·계정 문제로 AI를 못 쓰게 되면 사유(이후 글은 호출하지 않음)
+  let deferred = 0;     // 상한(건수·시간)에 걸려 다음 실행으로 미룬 글 수
+  const deadline = Date.now() + TIME_BUDGET_MS;
+  // 글 하나 끝날 때마다 저장한다. 맥이 밤에 느려져 실행이 중간에 잘리는 일이 있었는데(2026-09-22~24),
+  // 끝에 한 번만 저장하면 그때까지 쓴 AI 비용이 통째로 날아가고 다음 날 같은 글을 또 읽는다.
+  const checkpoint = () => { if (process.env.NOTICE_DRY_STATE !== '1') { state.lastRun = new Date().toISOString(); saveState(state); } };
   const readNow = [];   // 이번에 해석한 관련 글(사이트 대조는 모든 글을 읽은 뒤에 한꺼번에)
   // 테스트용: NOTICE_ONLY(정규식)에 제목·키가 맞는 글만 읽는다(예산 절약 재시험).
   const only = process.env.NOTICE_ONLY ? new RegExp(process.env.NOTICE_ONLY) : null;
@@ -191,11 +200,16 @@ export async function watchNotices({ site, log = console.log, today = new Date()
     log(`  · ${p.poolName} 「${p.title}」${edited ? ' (수정됨)' : ''}`);
 
     const ex = await extractPostText(p);
-    if (!OPS_RE.test(`${p.title}\n${ex.text}`)) { entry.status = 'not-ops'; continue; }
-    if (OFFTOPIC_TITLE.test(p.title) && !POOL_TITLE.test(p.title)) { entry.status = 'offtopic'; continue; }
+    if (!OPS_RE.test(`${p.title}\n${ex.text}`)) { entry.status = 'not-ops'; checkpoint(); continue; }
+    if (OFFTOPIC_TITLE.test(p.title) && !POOL_TITLE.test(p.title)) { entry.status = 'offtopic'; checkpoint(); continue; }
     stats.ops++;
     if (ex.skipped.length) log(`      건너뜀: ${ex.skipped.map(s => `${s.name}(${s.reason})`).join(', ')}`);
 
+    if (hasKey && !aiBlocked && (stats.ai >= MAX_AI || Date.now() > deadline)) { // 상한 초과 → 상태를 남기지 않아 다음 실행에서 읽는다
+      delete state.posts[p.key];
+      deferred++;
+      continue;
+    }
     if (!hasKey || aiBlocked) {
       entry.status = 'no-key'; // 키가 생기거나 문제가 풀리면 다음 실행에서 다시 읽는다
       manual.push({ ...entry, reason: 'AI 키 미설정 — 휴장/운영 관련 단어가 있는 글' });
@@ -228,7 +242,9 @@ export async function watchNotices({ site, log = console.log, today = new Date()
     // 해석은 됐지만 일부 첨부를 못 읽었다면 알려서 사람이 확인할 수 있게
     const unread = ex.skipped.filter(s => !/같은 내용 PDF/.test(s.reason));
     if (unread.length) manual.push({ ...entry, reason: `일부 첨부 못 읽음: ${unread.map(s => s.name).join(', ')}` });
+    checkpoint();
   }
+  if (deferred) log(`  (AI 해석 상한 ${MAX_AI}건 도달 — ${deferred}건은 다음 실행에서 읽음)`);
 
   // 사이트 대조: 같은 수영장의 모든 공지 휴장일을 합쳐 놓고 비교(월간 시간표 글과 휴장일 글이 따로 올라옴)
   const closedByPool = closedIndex(state);
@@ -268,8 +284,7 @@ export async function watchNotices({ site, log = console.log, today = new Date()
   // 오래된 기록 정리(글이 1년 넘게 지난 항목)
   const yearAgo = ymd(new Date(today.getTime() - 365 * 864e5));
   for (const [k, e] of Object.entries(state.posts)) if (e.date && e.date < yearAgo) delete state.posts[k];
-  state.lastRun = new Date().toISOString();
-  if (process.env.NOTICE_DRY_STATE !== '1') saveState(state);
+  checkpoint();
 
-  return { firstRun, hasKey, aiBlocked, model: NOTICE_MODEL, fresh, pending, needsImpl, manual, errors, stats };
+  return { firstRun, hasKey, aiBlocked, deferred, model: NOTICE_MODEL, fresh, pending, needsImpl, manual, errors, stats };
 }

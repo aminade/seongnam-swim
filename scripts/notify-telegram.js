@@ -99,6 +99,7 @@ function buildMessage() {
     for (const m of manual) { L.push(head(m)); L.push(`   ↳ ${esc(m.reason)}`); }
   }
   if (w.error) { L.push(''); L.push(`⚠️ 공지 감시 오류: ${esc(w.error)}`); }
+  if (w.deferred) L.push(i(`(AI 해석 상한에 걸려 ${w.deferred}건은 다음 점검에서 읽습니다)`));
 
   const isMonthly = !!nc?.target?.isFirstOfMonth;
   const hi = nc?.holidayInfo;
