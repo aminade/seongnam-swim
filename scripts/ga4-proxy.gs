@@ -116,7 +116,8 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
   const valid = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
   let from = valid(fromDate) ? fromDate : A2HS_START_DATE;
   let to   = valid(toDate)   ? toDate   : todayStr;
-  const EVENTS = ['a2hs_eligible', 'a2hs_shown', 'a2hs_skipped', 'a2hs_later', 'a2hs_never', 'a2hs_launch'];
+  const EVENTS = ['a2hs_eligible', 'a2hs_shown', 'a2hs_skipped', 'a2hs_later', 'a2hs_never', 'a2hs_launch',
+    'a2hs_prompt_accepted', 'a2hs_prompt_dismissed', 'a2hs_installed'];
   const empty = { startDate: from, endDate: to, eligible: 0, shown: 0, skipped: 0, later: 0, never: 0, launch: 0, showRate: 0,
     totalUsers: 0, totalSessions: 0,
     events: { eligible: 0, shown: 0, skipped: 0, later: 0, never: 0, launch: 0 } };
@@ -146,32 +147,26 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
     dateRanges: [{ startDate: from, endDate: to }],
     metrics: [{ name: 'totalUsers' }, { name: 'sessions' }],
   });
-  // 날짜별: 전체 방문수(세션) + 아이콘 실행(전체/OS별). 설치 기반이 늘고 있는지 보는 용도.
-  const dayTotR = gaRunReport(prop, {
-    dateRanges: [{ startDate: from, endDate: to }],
-    dimensions: [{ name: 'date' }],
-    metrics: [{ name: 'sessions' }],
-    orderBys: [{ dimension: { dimensionName: 'date' } }],
-  });
-  const dayLaunchR = gaRunReport(prop, {
-    dateRanges: [{ startDate: from, endDate: to }],
-    dimensions: [{ name: 'date' }, { name: 'operatingSystem' }],
-    metrics: [{ name: 'eventCount' }],
-    dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'a2hs_launch' } } },
-  });
+  // 날짜별 신규 설치. (실행 '횟수' 추이는 앱 아이콘 재방문 사람 수와 겹쳐 대시보드에서 뺐다)
   const byDate = {};
-  (dayTotR.rows || []).forEach(r => {
-    byDate[r.dimensionValues[0].value] = { date: r.dimensionValues[0].value, sessions: parseInt(r.metricValues[0].value) || 0, launch: 0, ios: 0, android: 0 };
+  // 신규 설치(a2hs_installed): 아이콘 첫 실행 때만 1회 → 날짜별 설치 수. via=prompt(우리 안내 경유) 구분 포함.
+  const dayInstallR = gaRunReport(prop, {
+    dateRanges: [{ startDate: from, endDate: to }],
+    dimensions: [{ name: 'date' }, { name: 'operatingSystem' }, { name: 'customEvent:via' }],
+    metrics: [{ name: 'eventCount' }],
+    dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'a2hs_installed' } } },
   });
-  (dayLaunchR.rows || []).forEach(r => {
-    const d = r.dimensionValues[0].value, os = r.dimensionValues[1].value;
+  (dayInstallR.rows || []).forEach(r => {
+    const d = r.dimensionValues[0].value, os = r.dimensionValues[1].value, via = r.dimensionValues[2].value;
     const n = parseInt(r.metricValues[0].value) || 0;
-    const row = byDate[d] || (byDate[d] = { date: d, sessions: 0, launch: 0, ios: 0, android: 0 });
-    row.launch += n;
-    if (/^iOS|iPadOS$/i.test(os)) row.ios += n;
-    else if (/^Android$/i.test(os)) row.android += n;
+    const row = byDate[d] || (byDate[d] = { date: d });
+    row.install = (row.install || 0) + n;
+    if (/^iOS|iPadOS$/i.test(os)) row.installIos = (row.installIos || 0) + n;
+    else if (/^Android$/i.test(os)) row.installAndroid = (row.installAndroid || 0) + n;
+    if (via === 'prompt') row.installViaPrompt = (row.installViaPrompt || 0) + n;
   });
-  const daily = Object.keys(byDate).sort().map(k => byDate[k]);
+  const daily = Object.keys(byDate).sort().map(k => Object.assign(
+    { install: 0, installIos: 0, installAndroid: 0, installViaPrompt: 0 }, byDate[k]));
 
   // 아이콘 실행(a2hs_launch)을 OS별로도 — iOS만 안내하던 시기와 안드로이드 도입 이후를 나눠 보기 위함
   const LR = gaRunReport(prop, {
@@ -193,6 +188,10 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
     startDate: from, endDate: to,
     eligible, shown, skipped: u('a2hs_skipped'),
     later: u('a2hs_later'), never: u('a2hs_never'), launch: u('a2hs_launch'), launchByOs, daily,
+    // 안드로이드 설치창에서 '설치'를 누른 수 ↔ 실제로 앱이 만들어져 첫 실행된 수.
+    // 차이는 기기에서 앱 생성이 실패한 건수(삼성 일부 기기에서 조용히 실패하는 사례 확인).
+    promptAccepted: ev('a2hs_prompt_accepted'), promptDismissed: ev('a2hs_prompt_dismissed'),
+    installed: ev('a2hs_installed'),
     showRate: eligible > 0 ? Math.round(shown / eligible * 100) : 0,
     totalUsers, totalSessions,
     // 발생 횟수(참고용) — 사람이 2·5회차에 두 번 걸릴 수 있어 사람 수와 다를 수 있음
@@ -648,10 +647,20 @@ function buildDashboardData() {
   const totalVisitors  = metricVal(totalR, 0, 0);
 
   // 30일 추이
+  // 그날 앱 아이콘으로 실행한 사람 수(일별). 재방문을 '앱 / 브라우저'로 나눠 보기 위함.
+  const trendAppR = gaRunReport(prop, {
+    dateRanges: [{ startDate: oneEightyDaysAgo, endDate: todayStr }],
+    dimensions: [{ name: 'date' }],
+    metrics: [{ name: 'activeUsers' }],
+    dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'a2hs_launch' } } },
+  });
+  const appByDate = {};
+  (trendAppR.rows || []).forEach(r => { appByDate[r.dimensionValues[0].value] = parseInt(r.metricValues[0].value) || 0; });
   const trend = (trendR.rows || []).map(r => ({
     date:     r.dimensionValues[0].value,
     users:    parseInt(r.metricValues[0].value) || 0,
     newUsers: parseInt(r.metricValues[1].value) || 0,
+    appUsers: appByDate[r.dimensionValues[0].value] || 0,
   }));
 
   // 시간대별 방문자 — 리셋 대상 아님(방문자수와 같은 분류, 하루 전체 그대로).

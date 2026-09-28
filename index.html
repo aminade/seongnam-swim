@@ -1368,7 +1368,11 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
             if (res && res.outcome === 'accepted') {
               try { localStorage.setItem('sw_a2hs_via', 'prompt'); } catch(e){}
             }
-            try { gtag('event','a2hs_prompt_result',{ outcome: (res && res.outcome) || 'unknown' }); } catch(e){}
+            // 이벤트 이름으로 나눈다(매개변수로 나누면 GA4에 맞춤 측정기준을 또 등록해야 함).
+            // '수락'과 '실제 설치 완료(a2hs_installed)'의 차이가 곧 기기에서 설치가 실패한 건수다.
+            try {
+              gtag('event', (res && res.outcome === 'accepted') ? 'a2hs_prompt_accepted' : 'a2hs_prompt_dismissed');
+            } catch(e){}
           }).catch(function(){});
           return;
         }
