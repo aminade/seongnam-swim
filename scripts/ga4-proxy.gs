@@ -146,6 +146,18 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
     dateRanges: [{ startDate: from, endDate: to }],
     metrics: [{ name: 'totalUsers' }, { name: 'sessions' }],
   });
+  // 아이콘 실행(a2hs_launch)을 OS별로도 — iOS만 안내하던 시기와 안드로이드 도입 이후를 나눠 보기 위함
+  const LR = gaRunReport(prop, {
+    dateRanges: [{ startDate: from, endDate: to }],
+    dimensions: [{ name: 'operatingSystem' }],
+    metrics: [{ name: 'totalUsers' }],
+    dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'a2hs_launch' } } },
+  });
+  const launchByOs = (LR.rows || []).map(r => ({
+    name: r.dimensionValues[0].value,
+    users: Math.round(parseFloat(r.metricValues[0].value) || 0),
+  })).sort((a, b) => b.users - a.users);
+
   const trow = (T.rows && T.rows[0]) ? T.rows[0].metricValues : null;
   const totalUsers    = trow ? Math.round(parseFloat(trow[0].value) || 0) : 0;
   const totalSessions = trow ? Math.round(parseFloat(trow[1].value) || 0) : 0;
@@ -153,7 +165,7 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
   return {
     startDate: from, endDate: to,
     eligible, shown, skipped: u('a2hs_skipped'),
-    later: u('a2hs_later'), never: u('a2hs_never'), launch: u('a2hs_launch'),
+    later: u('a2hs_later'), never: u('a2hs_never'), launch: u('a2hs_launch'), launchByOs,
     showRate: eligible > 0 ? Math.round(shown / eligible * 100) : 0,
     totalUsers, totalSessions,
     // 발생 횟수(참고용) — 사람이 2·5회차에 두 번 걸릴 수 있어 사람 수와 다를 수 있음
@@ -435,6 +447,14 @@ function buildDashboardData() {
     metrics: [{ name: 'activeUsers' }],
   });
 
+  // ── OS (이번달 + 최근 90일) ──
+  // deviceCategory는 모바일/데스크톱/태블릿만 구분해 iOS·안드로이드 비율을 알 수 없다.
+  // '홈 화면에 추가'는 iOS에서만 띄우고 있어서, 안드로이드 비중을 봐야 설치 버튼 구현 여부를 판단할 수 있다.
+  const osR = gaRunReport(prop, {
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dimensions: [{ name: 'operatingSystem' }],
+    metrics: [{ name: 'activeUsers' }],
+  });
   // ── 유입 경로 (이번달, 리셋 대상 아님) ──
   // 전체 = distinct activeUsers(소스별). 신규/재방문은 GA4 실제 newVsReturning 차원으로 분류한다.
   // (예전엔 재방문=activeUsers−newUsers로 뺐는데, 오픈<1개월 신생 사이트에선 '이번달 신규'가
@@ -628,6 +648,12 @@ function buildDashboardData() {
     tablet:  Math.round((devObj['tablet']  || 0) / devTotal * 100),
   };
 
+  // OS — 사람 수 그대로(비율은 대시보드에서 계산). 많이 쓰는 순으로 정렬.
+  const osList = report => Object.entries(rowsToObj(report, 0, 0))
+    .map(([name, users]) => ({ name, users }))
+    .sort((a, b) => b.users - a.users);
+  const os = { month: osList(osR) };
+
   // 유입 경로 (이번달) — 전체=distinct activeUsers, 신규/재방문=newVsReturning 실제 분류
   const nvrBySource = {}; // source → {new, returning}
   (sourceNvrR.rows || []).forEach(r => {
@@ -803,6 +829,7 @@ function buildDashboardData() {
     hourly,
     dayOfWeek,
     devices,
+    os,
     sources,
     sourceTrend,
     cities,
