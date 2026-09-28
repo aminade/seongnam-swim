@@ -1285,6 +1285,16 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
           });
         }
         try { gtag('event','a2hs_launch'); } catch(e){}
+        // 신규 설치: 아이콘으로 "처음" 실행한 그 순간에만 1회. 이후 실행은 a2hs_launch만 남는다.
+        // via=prompt 는 안드로이드에서 우리 설치 버튼을 눌러 설치한 경우(브라우저와 앱이 저장소를 공유),
+        // 그 외(아이폰 공유 메뉴·크롬 메뉴로 직접 추가)는 self 로 본다.
+        try {
+          if (localStorage.getItem('sw_a2hs_installed') !== '1') {
+            var via = localStorage.getItem('sw_a2hs_via') === 'prompt' ? 'prompt' : 'self';
+            gtag('event', 'a2hs_installed', { via: via });
+            localStorage.setItem('sw_a2hs_installed', '1');
+          }
+        } catch(e){}
       }
 
       /* --- 최신성: 복귀 시 날짜 바뀐 경우에만 제자리 갱신 --- */
