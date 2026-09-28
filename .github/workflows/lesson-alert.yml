@@ -1,0 +1,38 @@
+name: 금곡 강습 신청 알림
+
+on:
+  schedule:
+    # 아침 8시(KST) — 새 강습 공지 인지 후 첫 알림 + 신규 접수 당일 알림
+    - cron: '7 23 * * *'
+    # 저녁 7시(KST) — 1차 추첨 신청 시작일 알림
+    - cron: '3 10 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '테스트: 텔레그램 발송 없이 메시지만 출력'
+        type: boolean
+        default: false
+      force:
+        description: '테스트: 강제로 보낼 알림 종류(new|signup-eve|signup|lottery)'
+        type: string
+        default: ''
+
+jobs:
+  alert:
+    # 매일 점검과 같은 맥 러너. 공지 첨부를 로컬에서 읽으므로(AI·API 미사용) 비용은 없다.
+    runs-on: [self-hosted, seongnam-mac]
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 강습 공지 확인 & 알림
+        run: caffeinate -dimsu node scripts/lesson-alert.js
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+          LESSON_FORCE: ${{ inputs.force }}

@@ -83,7 +83,7 @@ async function spoCookie(up_id) {
   } catch { return ''; }
 }
 
-async function spoPosts(board) {
+export async function spoPosts(board) {
   const { up_id } = board;
   const boardUrl = `${SPO}/notice${up_id}.do`;
   const cookie = await spoCookie(up_id);
@@ -210,6 +210,9 @@ async function youthPosts(b) {
   }
   return posts;
 }
+
+// 성남도개공 게시판 한 곳만(강습 알림처럼 한 시설만 볼 때 — 전체 수집은 1분 넘게 걸린다).
+export const spoBoardOf = poolId => SPO_BOARDS.find(b => b.poolId === poolId);
 
 // 모든 게시판을 모아 반환. 게시판 하나가 실패해도 나머지는 계속한다.
 export async function collectPosts({ log = console.log } = {}) {

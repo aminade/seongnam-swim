@@ -189,6 +189,17 @@ jobs:
             }
             core.setOutput('number', number);   // 텔레그램 메시지의 /confirm 링크용
 
+      # 금곡 강습: 신규 접수 "전날 밤" 예고. 아침 8시 알림이 늦어질 때를 대비한 이중 안전장치다.
+      - name: 금곡 강습 접수 전날 예고
+        if: inputs.test_script == ''
+        run: caffeinate -dimsu node scripts/lesson-alert.js
+        continue-on-error: true
+        env:
+          LESSON_MODE: eve
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+
       - name: 텔레그램 발송 (알림 + 공휴일 리마인더)
         if: always() && inputs.test_script == ''   # 이상 없음이어도 월간 다이제스트로 발송(공휴일 리마인더 포함)
         run: node scripts/notify-telegram.js ${{ steps.issue.outputs.number }}

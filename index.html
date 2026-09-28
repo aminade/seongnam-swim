@@ -243,10 +243,6 @@
 .cal-cell2.sel .disc.mix { background: linear-gradient(135deg, var(--green) 0 50%, var(--sun) 50% 100%); box-shadow: none; }
 .cal-cell2.sel .disc .n { color: #fff; font-weight: 700; }
 
-/* 미운영 배너 (달력 아래) */
-.cal-notop { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
-.cal-notop .notop-item { font-size: 12.5px; color: var(--sun); background: var(--sun-soft); border-radius: 8px; padding: 8px 12px; }
-.cal-notop .notop-item b { font-weight: 700; }
 /* selected-day timeline */
 .cal-day-head { display: flex; align-items: baseline; gap: 9px; padding: 20px 2px 8px; margin-top: 12px; border-top: 1px solid var(--line); }
 .cal-day-head .d { font-family: var(--serif); font-weight: 700; font-size: 17px; letter-spacing: -.3px; }
@@ -436,7 +432,6 @@
         <div class="cal-dow">월</div><div class="cal-dow">화</div><div class="cal-dow">수</div><div class="cal-dow">목</div><div class="cal-dow">금</div><div class="cal-dow sat">토</div><div class="cal-dow sun">일</div>
       </div>
       <div class="cal-body" id="calBody"></div>
-      <div class="cal-notop" id="calNotop" style="display:none"></div>
       <div class="cal-day-head"><span class="d" id="calDayLabel"></span><span class="sub" id="calDaySub"></span></div>
       <div class="tl-scroller"><div class="tl" id="calTl"></div></div>
       <div class="tl-legend"><span><span class="sw"></span>2시간 이상</span><span><span class="sw md"></span>1시간 30분</span><span><span class="sw sm"></span>1시간</span></div>
@@ -631,21 +626,21 @@ document.addEventListener('DOMContentLoaded', function() {
           summer:[{time:'06:30~08:00',dur:90},{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90},{time:'17:30~19:00',dur:90}],
           winter:[{time:'06:30~08:00',dur:90},{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}] },
         sundaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
-        weekdayPrice:null, weekendPrice:null, priceNote:'요금 정보 없음' },
+        weekdayPrice:{adult:3000,teen:2500,child:1900}, weekendPrice:{adult:3000,teen:2500,child:1900}, priceNote:'성남시 관내 거주 만 48개월~만 18세 무료(회원가입 필요)' },  /* 요금: 10월 수영 프로그램 안내문(초2 이하 1,900 / 초3~만24세 2,500 / 성인 3,000) */
       { id:'yc_jungwon', name:'중원유스센터', area:'중원구', url:'https://www.snyouth.or.kr/fmcs/57', closedWeeks:[2,4], closedOnHoliday:'all', feature:'유스센터',
         weekdaySlots:[{time:'08:00~08:50',dur:50},{time:'12:00~12:50',dur:50},{time:'15:00~15:50',dur:50,days:[1,3,5]},{time:'20:00~20:50',dur:50}],
         saturdaySlots:{
           summer:[{time:'06:30~08:00',dur:90},{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90},{time:'17:30~19:00',dur:90}],
           winter:[{time:'06:30~08:00',dur:90},{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}] },
         sundaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
-        weekdayPrice:null, weekendPrice:null, priceNote:'청소년 무료 · 그 외 요금 정보 없음' },
+        weekdayPrice:{adult:3000,teen:2500,child:1900}, weekendPrice:{adult:3000,teen:2500,child:1900}, priceNote:'성남시 관내 거주 만 48개월~만 18세 무료(회원가입 필요)' },  /* 요금: 10월 수영 프로그램 안내문 */
       { id:'yc_pangyo', name:'판교유스센터', area:'분당구 판교동', url:'https://www.snyouth.or.kr/fmcs/133', closedWeeks:[1,3], closedOnHoliday:'all', feature:'유스센터',
         weekdaySlots:[{time:'08:00~08:50',dur:50},{time:'14:00~14:50',dur:50}],
         saturdaySlots:{
           summer:[{time:'06:30~08:00',dur:90},{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90},{time:'18:00~19:30',dur:90}],
           winter:[{time:'06:30~08:00',dur:90},{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}] },
         sundaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
-        weekdayPrice:{adult:3000,teen:2500,child:1900}, weekendPrice:{adult:3000,teen:2500,child:1900}, priceNote:null },
+        weekdayPrice:{adult:3000,teen:2500,child:1900}, weekendPrice:{adult:3000,teen:2500,child:1900}, priceNote:'성남시 관내 거주 만 48개월~만 18세 무료(회원가입 필요)' },
       // 수정유스센터: 신축 건물 시범운영 중(2026-07-25~별도 공지시까지). 정식 페이지(fmcs/32) 미반영, 공지사항(fmcs/22)만 근거.
       { id:'yc_sujeong', name:'수정유스센터', area:'수정구 신흥동', url:'https://www.snyouth.or.kr/fmcs/22?action=read&action-value=7328334a4cc9faa679e34190215a7e1a', closedWeeks:[1,2,3,4,5], closedOnHoliday:'all', startsOn:'2026-07-25', feature:'유스센터 · 시범운영',
         weekdaySlots:[{time:'09:00~10:30',dur:90},{time:'13:30~15:00',dur:90}],
@@ -867,6 +862,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
             } else {
               html+=`<div class="price"><div class="it"><span>${pool.priceNote||'요금 정보 없음'}</span></div></div>`;
             }
+            if(pr && pool.priceNote) html+=`<div class="pool-note">※ ${pool.priceNote}</div>`;
           }
           const sp=specialFor(pool,selectedDate);
           if(sp && sp.note) html+=`<div class="pool-note">※ ${sp.note}</div>`;
@@ -907,16 +903,6 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       body.querySelectorAll('.cal-cell2[data-d]').forEach(c=>{
         c.addEventListener('click',()=>{ selectedCalDate=new Date(calYear,calMonth,parseInt(c.dataset.d,10)); buildCalendar(); });
       });
-      // 미운영 배너: 표시 중인 달과 겹치는 미운영 기간을 달력 아래에 안내
-      const mStart=`${calYear}-${String(calMonth+1).padStart(2,'0')}-01`, mEnd=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`;
-      const notop=POOLS.filter(p=>p.notOperating && p.notOperating.some(r=> r.from<=mEnd && r.to>=mStart));
-      const nb=document.getElementById('calNotop');
-      if(notop.length){
-        nb.innerHTML=notop.map(p=>{ const r=p.notOperating.find(r=> r.from<=mEnd && r.to>=mStart);
-          const md=s=>{ const q=s.split('-'); return `${+q[1]}/${+q[2]}`; };
-          return `<div class="notop-item">🚫 <b>${p.name}</b> : ${r.label || `${md(r.from)}-${md(r.to)} 임시 휴장`}</div>`; }).join('');
-        nb.style.display='';
-      } else { nb.style.display='none'; nb.innerHTML=''; }
       renderCalTimeline(selectedCalDate);
     }
 
