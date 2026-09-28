@@ -1280,8 +1280,16 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
         deferredPrompt = e;
       });
       // 설치 완료 신호(우리 버튼이든 크롬 메뉴든 모두 발생) — 첫 실행 때 경유 여부를 읽는다.
+      // 안드로이드는 설치된 앱이 크롬과 저장소를 같이 써서, 앱을 지워도 '설치 기록함' 표시가 남는다.
+      // 그대로 두면 재설치 후 첫 실행이 신규 설치로 안 잡히므로(2026-09-28 테스트: 실행 3·installed 0),
+      // 설치될 때마다 표시를 지우고 이번 설치의 경로(우리 버튼/크롬 메뉴)를 새로 적는다.
+      var viaOurPrompt = false;
       window.addEventListener('appinstalled', function(){
         try { gtag('event','a2hs_accepted'); } catch(e){}
+        try {
+          localStorage.removeItem('sw_a2hs_installed');
+          localStorage.setItem('sw_a2hs_via', viaOurPrompt ? 'prompt' : 'self');
+        } catch(e){}
       });
       // Safari vs 그 외(크롬/파폭/엣지 = 공유 아이콘이 상단)
       function browserKind(){
@@ -1363,10 +1371,13 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
           deferredPrompt = null;
           closeSheet();
           try { gtag('event','a2hs_later',{ browser: 'android' }); } catch(e){}
+          viaOurPrompt = true;
           p.prompt();
           p.userChoice.then(function(res){
             if (res && res.outcome === 'accepted') {
               try { localStorage.setItem('sw_a2hs_via', 'prompt'); } catch(e){}
+            } else {
+              viaOurPrompt = false;
             }
             // 이벤트 이름으로 나눈다(매개변수로 나누면 GA4에 맞춤 측정기준을 또 등록해야 함).
             // '수락'과 '실제 설치 완료(a2hs_installed)'의 차이가 곧 기기에서 설치가 실패한 건수다.
