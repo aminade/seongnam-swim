@@ -1248,7 +1248,14 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
 
   window.addEventListener('beforeunload', function() { if(this._timer) clearInterval(this._timer); });
 
-    /* ===== 홈 화면에 추가 (iOS) ===== */
+    /* ===== 서비스워커 — 안드로이드 크롬의 앱 설치 조건(캐시는 두지 않음) ===== */
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function(){
+        navigator.serviceWorker.register('/sw.js').catch(function(){});
+      });
+    }
+
+    /* ===== 홈 화면에 추가 (iOS 안내 / 안드로이드 설치 버튼) ===== */
     (function(){
       var LS_VISITS = 'sw_a2hs_visits';
       var LS_NEVER  = 'sw_a2hs_never';
@@ -1264,6 +1271,18 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
         return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       }
+      function isAndroid(){ return /android/i.test(navigator.userAgent); }
+
+      // 안드로이드 크롬은 설치 가능해지면 beforeinstallprompt를 준다. 기본 배너를 막고 우리 시트에서 띄운다.
+      var deferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', function(e){
+        e.preventDefault();
+        deferredPrompt = e;
+      });
+      // 설치 완료 신호(우리 버튼이든 크롬 메뉴든 모두 발생) — 첫 실행 때 경유 여부를 읽는다.
+      window.addEventListener('appinstalled', function(){
+        try { gtag('event','a2hs_accepted'); } catch(e){}
+      });
       // Safari vs 그 외(크롬/파폭/엣지 = 공유 아이콘이 상단)
       function browserKind(){
         if (demoBrowser) return demoBrowser;
@@ -1319,9 +1338,12 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       if (!sheet || !scrim) return;
 
       function applyBrowser(kind){
-        var isSafari = kind === 'safari';
-        document.getElementById('a2hsStepsSafari').style.display = isSafari ? 'flex' : 'none';
-        document.getElementById('a2hsStepsChrome').style.display = isSafari ? 'none' : 'flex';
+        var android = kind === 'android';
+        document.getElementById('a2hsStepsSafari').style.display = (kind === 'safari') ? 'flex' : 'none';
+        document.getElementById('a2hsStepsChrome').style.display = (kind === 'chrome') ? 'flex' : 'none';
+        document.getElementById('a2hsStepsAndroid').style.display = android ? 'flex' : 'none';
+        // 안드로이드는 버튼 한 번이면 설치된다 → '알겠어요' 자리를 '설치' 버튼으로 바꾼다.
+        document.getElementById('a2hsLater').textContent = android ? '설치하기' : '알겠어요';
       }
       function openSheet(kind){
         applyBrowser(kind);
@@ -1335,6 +1357,21 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       }
 
       document.getElementById('a2hsLater').addEventListener('click', function(){
+        // 안드로이드: 크롬 설치창 띄우기. 수락하면 '안내 경유 설치'로 표시해 두고, 첫 실행 때 그 값을 보낸다.
+        if (deferredPrompt) {
+          var p = deferredPrompt;
+          deferredPrompt = null;
+          closeSheet();
+          try { gtag('event','a2hs_later',{ browser: 'android' }); } catch(e){}
+          p.prompt();
+          p.userChoice.then(function(res){
+            if (res && res.outcome === 'accepted') {
+              try { localStorage.setItem('sw_a2hs_via', 'prompt'); } catch(e){}
+            }
+            try { gtag('event','a2hs_prompt_result',{ outcome: (res && res.outcome) || 'unknown' }); } catch(e){}
+          }).catch(function(){});
+          return;
+        }
         closeSheet(); try { gtag('event','a2hs_later'); } catch(e){}
       });
       document.getElementById('a2hsNever').addEventListener('click', function(){
@@ -1345,8 +1382,8 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
 
       if (demo) { openSheet(browserKind()); return; }   // 미리보기 모드
 
-      // 실제 노출 자격: iOS + 비 standalone + "다시 안 보기" 안 누름
-      if (standalone || !isIOS()) return;
+      // 실제 노출 자격: (iOS 또는 안드로이드) + 비 standalone + "다시 안 보기" 안 누름
+      if (standalone || (!isIOS() && !isAndroid())) return;
       var never = false;
       try { never = localStorage.getItem(LS_NEVER) === '1'; } catch(e){}
       if (never) return;
@@ -1361,7 +1398,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       if (visits !== 2 && visits !== 5) return;
 
       // 노출 자격 성립 — 이 방문이 조건에 걸림(대시보드 퍼널 상단)
-      var kind = browserKind();
+      var kind = isAndroid() ? 'android' : browserKind();
       try { gtag('event','a2hs_eligible',{ browser: kind, visit: visits }); } catch(e){}
 
       // 7초 머문 뒤 등장. 그 전에 이탈/백그라운드 시 이번 방문은 건너뜀(skipped).
@@ -1369,7 +1406,13 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       var timer = setTimeout(function(){
         if (settled) return;
         settled = true;
-        if (document.visibilityState === 'visible') openSheet(kind);
+        if (document.visibilityState !== 'visible') return;
+        // 안드로이드: 크롬이 설치 가능하다고 알려준 경우에만 띄운다(이미 설치했거나 조건 미달이면 신호가 안 온다).
+        if (kind === 'android' && !deferredPrompt) {
+          try { gtag('event','a2hs_skipped',{ browser: 'android', visit: visits, reason: 'no-prompt' }); } catch(e){}
+          return;
+        }
+        openSheet(kind);
       }, 7000);
       document.addEventListener('visibilitychange', function onHide(){
         if (document.visibilityState === 'hidden' && !settled) {
@@ -1463,6 +1506,12 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
     <div class="a2hs-step"><span class="a2hs-n">1</span><span class="a2hs-txt">아래 <b>더보기</b><span class="a2hs-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/></svg></span>버튼 → <b>공유</b>를 눌러요</span></div>
     <div class="a2hs-step"><span class="a2hs-n">2</span><span class="a2hs-txt">메뉴에서 <span class="a2hs-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg></span><b>홈 화면에 추가</b>를 선택</span></div>
     <div class="a2hs-step"><span class="a2hs-n">3</span><span class="a2hs-txt">오른쪽 위 <b>추가</b>를 누르면 끝!</span></div>
+  </div>
+
+  <!-- 안드로이드: 버튼 한 번이면 설치 -->
+  <div class="a2hs-steps" id="a2hsStepsAndroid" style="display:none">
+    <div class="a2hs-step"><span class="a2hs-n">1</span><span class="a2hs-txt">아래 <b>설치하기</b>를 누르면 끝!</span></div>
+    <div class="a2hs-step"><span class="a2hs-n">2</span><span class="a2hs-txt">홈 화면 아이콘으로 <b>앱처럼</b> 바로 열려요</span></div>
   </div>
 
   <!-- Chrome/기타(iOS) 안내 -->
