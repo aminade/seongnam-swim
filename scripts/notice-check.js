@@ -6,7 +6,8 @@
  *    본문·첨부(PDF/HWP/이미지)는 로컬에서 텍스트로 뽑고(무료), 운영 관련 글만 Claude(Sonnet)로 해석해
  *    우리 사이트(index.html)와 대조한다. 제목만 보고 고르지 않는다 — 2026-09에 놓친 공지가 전부
  *    "재등록 안내"·"강습 안내" 같은 제목 안에 있었다.
- * 2) 공휴일 리마인더: data.go.kr 특일정보 API로 그 달 공휴일 조회 → 우리 HOLIDAYS에 빠진 게 있으면 경고.
+ * 2) 공휴일 리마인더: data.go.kr 특일정보 API로 그 달 공휴일 조회 → 우리 HOLIDAYS에 빠진 게 있거나,
+ *    공휴일이 아닌 날이 들어 있으면 경고(2026-09-28을 추석 대체로 잘못 넣어 월요일이 휴일 시간표로 나온 적 있음).
  * 3) 매월 말일: 다음 달 1일 TO-DO.
  *
  * 출력: /tmp/notice-check.json (텔레그램 스텝이 읽음). 알릴 것이 있으면 exit 2.
@@ -78,8 +79,10 @@ async function main() {
     try {
       const official = await fetchOfficialHolidays(year, month, apiKey);
       const missing = official.filter(h => !site.HOLIDAYS.has(h.date)); // 우리 HOLIDAYS에 없는 공휴일
-      console.log(`${official.length}건${missing.length ? `, ⚠️ 우리 데이터 누락 ${missing.length}건` : ''}`);
-      holidayInfo = { year, month, official, missing };
+      const officialDates = new Set(official.map(h => h.date));
+      const extra = [...site.HOLIDAYS].filter(d => d.startsWith(`${year}-${pad(month)}-`) && !officialDates.has(d)).sort(); // 공휴일이 아닌데 우리 HOLIDAYS에 있는 날
+      console.log(`${official.length}건${missing.length ? `, ⚠️ 우리 데이터 누락 ${missing.length}건` : ''}${extra.length ? `, ⚠️ 공휴일 아닌 날 ${extra.length}건` : ''}`);
+      holidayInfo = { year, month, official, missing, extra };
     } catch (e) {
       console.log(`오류: ${e.message}`);
       holidayInfo = { year, month, error: e.message };
@@ -100,9 +103,10 @@ async function main() {
 
   // ── 요약/출력 ──
   const holidayMissing = holidayInfo?.missing?.length || 0;
+  const holidayExtra = holidayInfo?.extra?.length || 0;
   const w = watch;
   const alert = w.fresh.length > 0 || w.pending.length > 0 || w.needsImpl.length > 0 || w.manual.length > 0
-    || w.errors.length > 0 || !!w.error || holidayMissing > 0;
+    || w.errors.length > 0 || !!w.error || holidayMissing > 0 || holidayExtra > 0;
 
   console.log('\n=== 요약 ===');
   const st = w.stats || {};
@@ -115,6 +119,7 @@ async function main() {
   for (const e of w.errors) console.log(`  ⚠️ ${e.pool}: ${e.error}`);
   if (holidayInfo?.official) console.log(`${label} 공휴일: ${holidayInfo.official.map(h => `${h.date.slice(5)} ${h.name}`).join(', ') || '없음'}`);
   if (holidayMissing) console.log(`⚠️ 우리 데이터 누락 공휴일: ${holidayInfo.missing.map(h => `${h.date} ${h.name}`).join(', ')}`);
+  if (holidayExtra) console.log(`⚠️ 공휴일이 아닌데 HOLIDAYS에 있는 날: ${holidayInfo.extra.join(', ')}`);
 
   writeFileSync('/tmp/notice-check.json', JSON.stringify({
     target: { year, month, label, runLabel, isFirstOfMonth: kst.getUTCDate() === 1 },

@@ -137,6 +137,12 @@ function buildMessage() {
     L.push(`🚨 ${b('우리 데이터에 빠진 공휴일')}`);
     for (const h of hi.missing) L.push(`• ${esc(h.date)} ${esc(h.name)} ← HOLIDAYS 추가 필요`);
   }
+  // ── 공휴일이 아닌데 우리 데이터에 있는 날 (오류 알림 — 항상. 평일이 휴일 시간표로 나옴) ──
+  if (hi?.extra?.length) {
+    L.push('');
+    L.push(`🚨 ${b('공휴일이 아닌데 우리 데이터에 있는 날')}`);
+    for (const d of hi.extra) L.push(`• ${esc(d)} ← HOLIDAYS에서 제거 검토`);
+  }
 
   // 크롤 실패: 같은 수영장이 시간표·공지 두 단계에서 모두 실패할 수 있으므로 이름으로 묶어
   // 한 번만 출력하고, 어느 단계가 깨졌는지 라벨로 밝힌다.
@@ -152,7 +158,7 @@ function buildMessage() {
   addFails(w.errors, '공지');
   const errs = [...failStages].map(([pool, stages]) => `${pool}(${[...stages].join('·')})`);
 
-  const anyAlert = !!(changed.length || youthChanged.length || w.fresh.length || w.pending.length || w.needsImpl.length || w.manual.length || w.error || hi?.missing?.length || errs.length || missed);
+  const anyAlert = !!(changed.length || youthChanged.length || w.fresh.length || w.pending.length || w.needsImpl.length || w.manual.length || w.error || hi?.missing?.length || hi?.extra?.length || errs.length || missed);
 
   // ── 이상 없음 (월초 다이제스트에서만 표기; 알림만 모드에선 애초에 발송 안 함) ──
   if (isMonthly && !anyAlert) { L.push(''); L.push('✅ 시간표·공지 이상 없음'); }
