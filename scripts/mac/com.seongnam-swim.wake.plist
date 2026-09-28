@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  성남 수영장 점검용 맥 자동 깨우기 (관리자 권한 LaunchDaemon).
+  맥이 07:58 / 18:58 / 20:58에 깨어나는 이유가 이것이다. 설명·제거 방법: scripts/mac/README.md
+  설치 위치: /Library/LaunchDaemons/com.seongnam-swim.wake.plist
+  켜질 때와 하루 네 번 돌면서 오늘·내일 깨우기 예약을 채워 넣는다.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.seongnam-swim.wake</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/usr/local/libexec/seongnam-swim-wake.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>5</integer></dict>
+  </array>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>
