@@ -184,14 +184,17 @@ function buildVisitDistribution(prop) {
     (R.rows || []).forEach(r => {
       const k = parseInt(r.dimensionValues[0].value, 10);
       if (!k || k < 1) return; // '(not set)' 등은 무시
-      atLeast[Math.min(k, 10)] = Math.round(parseFloat(r.metricValues[0].value) || 0);
+      atLeast[Math.min(k, 99)] = Math.round(parseFloat(r.metricValues[0].value) || 0);
     });
+    const ge = k => atLeast[k] || 0;               // ≥k회 방문자
+    const exact = k => Math.max(0, ge(k) - ge(k + 1)); // 정확히 k회
+    const range = (a, b) => Math.max(0, ge(a) - ge(b + 1)); // a~b회
     const dist = [];
-    for (let k = 1; k <= 10; k++) {
-      const cur = atLeast[k] || 0;
-      const users = k < 10 ? Math.max(0, cur - (atLeast[k + 1] || 0)) : cur; // 10회는 ≥10
-      dist.push({ visits: k, label: k < 10 ? (k + '회') : '10회+', users: users });
-    }
+    for (let k = 1; k <= 9; k++) dist.push({ visits: k, label: k + '회', users: exact(k) });
+    // ⚠️ 2026-09-28 이전 데이터는 사이트가 10회 이상을 모두 10으로 보내서, 옛 heavy user는 10~19 칸에 몰려 있다.
+    dist.push({ visits: 10, label: '10~19회', users: range(10, 19) });
+    dist.push({ visits: 20, label: '20~29회', users: range(20, 29) });
+    dist.push({ visits: 30, label: '30회+', users: ge(30) });
     return { startDate: VISIT_DIST_START, dist: dist };
   } catch (e) {
     base.error = String(e).slice(0, 200);
@@ -319,10 +322,22 @@ function buildDashboardData() {
       { name: 'newUsers' },
     ],
   });
-  // 어제는 리셋 대상 아님(비교용 완전한 하루 그대로).
+  // 어제는 리셋 대상 아님(비교용 완전한 하루 그대로). 방문자수 + 방문수 둘 다.
   const yesterdayR = gaRunReport(prop, {
     dateRanges: [{ startDate: yesterday, endDate: yesterday }],
-    metrics: [{ name: 'activeUsers' }],
+    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+  });
+  // 비교 기준: 지난주 같은 요일(요일마다 방문 패턴이 크게 달라 전날 대비는 의미가 약하다).
+  const prevWeekDay = Utilities.formatDate(new Date(now.getTime() - 8 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
+  const prevWeekDayR = gaRunReport(prop, {
+    dateRanges: [{ startDate: prevWeekDay, endDate: prevWeekDay }],
+    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+  });
+  // 최근 7일(어제까지). 오늘은 아직 안 끝난 하루라 제외한다.
+  const weekStart = Utilities.formatDate(new Date(now.getTime() - 7 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
+  const weekR = gaRunReport(prop, {
+    dateRanges: [{ startDate: weekStart, endDate: yesterday }],
+    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
   });
 
   // ── 오늘 페이지뷰 (COUNT_START_HOUR부터, 리셋 대상) ──
@@ -350,13 +365,13 @@ function buildDashboardData() {
   // ── 이번달 ── (방문자수 집계는 리셋 대상 아님 — 클램프 안 함)
   const monthR = gaRunReport(prop, {
     dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
-    metrics: [{ name: 'activeUsers' }],
+    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
   });
 
   // ── 전체 누적 ── (리셋 대상 아님)
   const totalR = gaRunReport(prop, {
     dateRanges: [{ startDate: '2024-01-01', endDate: todayStr }],
-    metrics: [{ name: 'activeUsers' }],
+    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
   });
 
   // ── 30일 추이 ── (리셋 대상 아님)
@@ -375,8 +390,9 @@ function buildDashboardData() {
   });
 
   // ── 시간대별 (오늘) ──
+  // 시간대별: 하루치는 표본이 너무 작아 이번달 누적으로 본다.
   const hourlyR = gaRunReport(prop, {
-    dateRanges: [{ startDate: todayStr, endDate: todayStr }],
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     dimensions: [{ name: 'hour' }],
     metrics: [{ name: 'activeUsers' }],
     orderBys: [{ dimension: { dimensionName: 'hour' } }],
@@ -446,6 +462,17 @@ function buildDashboardData() {
     },
   });
 
+  // 수영장별 "클릭한 사람 수". totalUsers는 중복 제거 지표라 시간 단위로 쪼개 합산할 수 없어
+  // (gaRunReportSinceHour 사용 불가) 이번달 전체 범위로 그대로 조회한다.
+  const poolUsersR = gaRunReport(prop, {
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dimensions: [{ name: 'eventName' }],
+    metrics: [{ name: 'totalUsers' }],
+    dimensionFilter: {
+      filter: { fieldName: 'eventName', stringFilter: { matchType: 'BEGINS_WITH', value: 'pool_' } },
+    },
+  });
+
   // ── 한강 페이지 방문 (세션 기준, COUNT_START_HOUR부터) ──
   // 가상 페이지뷰(page_title로 식별)의 세션 수를 쓴다. 진입 버튼(둥둥이)이 바뀌거나
   // 없어져도 이 가상 페이지뷰만 유지하면 계속 같은 방식으로 집계되고, 같은 세션에서
@@ -508,11 +535,6 @@ function buildDashboardData() {
     dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     dimensions: [{ name: 'newVsReturning' }],
     metrics: [{ name: 'activeUsers' }, { name: 'sessionsPerUser' }],
-  });
-
-  // ── 진짜 실시간 접속자 (지난 30분, Realtime Data API) ──
-  const realtimeR = gaRunRealtimeReport(prop, {
-    metrics: [{ name: 'activeUsers' }],
   });
 
   // ── 파싱 헬퍼 ──
@@ -659,9 +681,14 @@ function buildDashboardData() {
   };
 
   // 수영장 클릭 (dateHour로 재집계한 뒤라 순서가 안 섞여 있으니 클릭수 기준으로 다시 정렬)
+  const poolUsers = {};
+  (poolUsersR.rows || []).forEach(r => {
+    poolUsers[r.dimensionValues[0].value.replace('pool_', '')] = parseInt(r.metricValues[0].value) || 0;
+  });
   const pools = (poolR.rows || []).map(r => ({
     id:     r.dimensionValues[0].value.replace('pool_', ''),
     name:   POOL_NAMES[r.dimensionValues[0].value.replace('pool_', '')] || r.dimensionValues[0].value,
+    users:  poolUsers[r.dimensionValues[0].value.replace('pool_', '')] || 0,
     clicks: parseInt(r.metricValues[0].value) || 0,
   })).sort((a, b) => b.clicks - a.clicks);
 
@@ -695,9 +722,6 @@ function buildDashboardData() {
   });
   const hangangTrend = hangangTrendDateOrder.map(date => ({ date, opens: hangangTrendByDate[date] }));
 
-  // 진짜 실시간 접속자
-  const realtime = metricVal(realtimeR, 0, 0);
-
   // 재방문율 — 원본 사용자 수(newCount/returningCount)도 그대로 노출해서 반올림된 %만
   // 봐서는 안 보이는 실제 변화를 화면에서 바로 확인할 수 있게 한다.
   const nvrObj = rowsToObj(nvrR, 0, 0);
@@ -715,17 +739,19 @@ function buildDashboardData() {
   // ── 방문 횟수 분포 (7/26~) ──
   const visitDist = buildVisitDistribution(prop);
 
-  // 어제 대비 증감
-  const visitorsDiff = ystdVisitors > 0
-    ? Math.round((todayVisitors - ystdVisitors) / ystdVisitors * 100)
+  // 어제 ↔ 지난주 같은 요일 증감(방문자수 기준)
+  const prevWeekVisitors = metricVal(prevWeekDayR, 0, 0);
+  const visitorsDiff = prevWeekVisitors > 0
+    ? Math.round((ystdVisitors - prevWeekVisitors) / prevWeekVisitors * 100)
     : 0;
 
   return {
     today:       { visitors: Math.round(todayVisitors), sessions: Math.round(todaySessions), pageviews: Math.round(todayPageviews), pageviewsVisitors: Math.round(todayPageviewsVisitors) },
-    yesterday:   { visitors: Math.round(ystdVisitors) },
-    month:       { visitors: Math.round(monthVisitors) },
-    total:       { visitors: Math.round(totalVisitors) },
-    realtime:    Math.round(realtime),
+    yesterday:   { date: yesterday, visitors: Math.round(ystdVisitors), sessions: Math.round(metricVal(yesterdayR, 0, 1)) },
+    prevWeekDay: { date: prevWeekDay, visitors: Math.round(prevWeekVisitors), sessions: Math.round(metricVal(prevWeekDayR, 0, 1)) },
+    week:        { from: weekStart, to: yesterday, visitors: Math.round(metricVal(weekR, 0, 0)), sessions: Math.round(metricVal(weekR, 0, 1)) },
+    month:       { visitors: Math.round(monthVisitors), sessions: Math.round(metricVal(monthR, 0, 1)) },
+    total:       { visitors: Math.round(totalVisitors), sessions: Math.round(metricVal(totalR, 0, 1)) },
     debug:       { todayStr, yesterday, propertyTimeZone, countStartHour: COUNT_START_HOUR },
     avgDuration,
     bounceRate:  Math.round(bounceRate * 100),
