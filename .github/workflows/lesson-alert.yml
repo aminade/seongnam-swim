@@ -22,6 +22,10 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # 잡 전체 동안 맥이 잠들지 않게 한다(이유는 update-schedule.yml 같은 단계 주석 참고).
+      - name: 잡 동안 잠자기 방지
+        run: nohup caffeinate -dimsu -w "$(pgrep -n -f Runner.Worker)" >/dev/null 2>&1 &
+
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:

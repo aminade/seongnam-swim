@@ -59,7 +59,8 @@ function buildMessage(kind, { month, matches, schedule, programUrl, hasSignupNot
   if (!matches.length) {
     L.push(`⭐ ${b(`금곡 ${month}월 강습`)} — 관심 강좌 미개설`);
     L.push('');
-    L.push('관심 목록(수영 기초1·초급2·중급3·중급4, 배드민턴)에 해당하는 강좌가 이번 달 시간표에 없어요.');
+    const watchList = Object.entries(CONFIG.관심).map(([k, v]) => (v.강좌.length ? `${k} ${v.강좌.join('·')}` : k)).join(', ');
+    L.push(`관심 목록(${esc(watchList)})에 해당하는 강좌가 이번 달 시간표에 없어요.`);
     L.push(`<a href="${esc(programUrl)}">${month}월 강습프로그램 보기</a>`);
     return L.join('\n');
   }
@@ -119,8 +120,13 @@ async function main() {
   const due = [];
   if (forced) due.push(forced);
   else {
-    // ① 새 공지 인지 후 첫 아침
-    if (mode === 'morning' && !already('new')) due.push('new');
+    // ① 새 공지 인지 후 첫 아침. 신규 접수·추첨 신청이 이미 다 끝난 달이면 보내지 않고 기록만 한다.
+    const ends = [schedule.signup?.date, schedule.lottery?.to.date].filter(Boolean);
+    const allPast = ends.length > 0 && ends.every(d => d < today);
+    if (mode === 'morning' && !already('new')) {
+      if (allPast) { mark('new'); console.log('접수·추첨 일정이 이미 지남 — 새 공지 알림 생략'); }
+      else due.push('new');
+    }
     // 관심 강좌가 없으면 이후 접수·추첨 알림은 보내지 않는다
     if (matches.length) {
       if (mode === 'eve' && schedule.signup && addDays(today, 1) === schedule.signup.date && !already('signup-eve')) due.push('signup-eve');

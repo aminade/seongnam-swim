@@ -34,6 +34,12 @@ jobs:
       issues: write
 
     steps:
+      # 잡 전체 동안 맥이 잠들지 않게 한다. 단계별 caffeinate만으로는 그 사이(checkout·gh 조회 등)에
+      # 잠들 수 있고, 10분 넘게 잠들면 러너가 잡 임대를 갱신하지 못해 GitHub이 취소한다
+      # (2026-09-26 02:16 시작 → 02:16~02:32 절전 → 02:26 취소). Runner.Worker가 끝나면 같이 끝난다.
+      - name: 잡 동안 잠자기 방지
+        run: nohup caffeinate -dimsu -w "$(pgrep -n -f Runner.Worker)" >/dev/null 2>&1 &
+
       - uses: actions/checkout@v4
 
       # 자기호스팅 러너는 일회용이 아니라 /tmp가 실행 간에 남는다. 크롤 스텝이 죽어도
