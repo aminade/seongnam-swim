@@ -55,6 +55,10 @@ export function parseBadminton(text) {
   return out;
 }
 
+// 추첨제 종목: 공지에 "성인수영(기초반) 및 배드민턴, 탁구, 어린이수영, 아쿠아로빅 추첨제"로 명시된다.
+// 그 외 수영 강습반(초급·중급 등)은 결원 발생 시 선착순(일반 접수).
+export const isLottery = (종목, name) => 종목 === '배드민턴' || /^기초/.test(name);
+
 // 관심 목록(data/lesson-watch.json)과 대조 → [{종목, 아이콘, 항목:[{course,time}]}]
 export function matchWatch(config, swim, badminton) {
   const res = [];

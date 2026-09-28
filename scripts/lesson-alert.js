@@ -22,7 +22,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { spoPosts, spoBoardOf } from './notice-sources.js';
 import { extractPostText } from './notice-extract.js';
-import { parseSwimCourses, parseBadminton, parseSchedule, matchWatch, targetMonthOf } from './lesson-parse.js';
+import { parseSwimCourses, parseBadminton, parseSchedule, matchWatch, targetMonthOf, isLottery } from './lesson-parse.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const CONFIG = JSON.parse(readFileSync(join(__dir, '..', 'data', 'lesson-watch.json'), 'utf-8'));
@@ -52,7 +52,7 @@ async function send(text) {
   if (!j.ok) throw new Error(`Telegram 발송 실패: ${JSON.stringify(j)}`);
 }
 
-function buildMessage(kind, { month, matches, schedule, programUrl, signupUrl, hasSignupNotice }) {
+function buildMessage(kind, { month, matches, schedule, programUrl, hasSignupNotice, registered }) {
   const L = [];
   const kinds = matches.map(m => m.종목).join(', ');
   const headSuffix = { 'signup-eve': ' — 내일 신규 접수', signup: ' — 오늘 신규 접수', lottery: ' — 오늘 추첨 신청 시작' }[kind] || '';
@@ -73,15 +73,17 @@ function buildMessage(kind, { month, matches, schedule, programUrl, signupUrl, h
   if (!hasSignupNotice) {
     L.push(i('수강신청 안내 공지가 아직 안 올라왔어요. 올라오면 일정을 다시 알려드릴게요.'));
   } else {
+    // 해당되는 일정만 넣는다: 추첨 종목이 있으면 추첨, 선착순 종목이 있으면 신규 접수,
+    // 이미 등록한 종목이 있을 때만 재등록.
+    const anyLottery = matches.some(m => m.항목.some(x => isLottery(m.종목, x.name)));
+    const anyFirstCome = matches.some(m => m.항목.some(x => !isLottery(m.종목, x.name)));
     const lt = schedule.lottery;
-    if (lt) L.push(`추첨 : 신청 ${fmtDay(lt.from.date)} ${lt.from.hour}시~${fmtDay(lt.to.date)} 24시, 추첨 ${fmtDay(lt.draw.date)} ${lt.draw.hour}시`);
-    L.push(`신규 접수 : ${fmtAt(schedule.signup)}`);
-    if (schedule.reRegister) L.push(`재등록 : ${fmtDay(schedule.reRegister.from.date)}~${fmtDay(schedule.reRegister.to.date)}`);
-    if (signupUrl) L.push(`<a href="${esc(signupUrl)}">수강신청·추첨제 안내</a>`);
+    if (anyLottery && lt) L.push(`추첨 : 신청 ${fmtDay(lt.from.date)} ${lt.from.hour}시~${fmtDay(lt.to.date)} 24시, 추첨 ${fmtDay(lt.draw.date)} ${lt.draw.hour}시`);
+    if (anyFirstCome) L.push(`신규 접수 : ${fmtAt(schedule.signup)}`);
+    if (registered?.length && schedule.reRegister) L.push(`재등록 : ${fmtDay(schedule.reRegister.from.date)}~${fmtDay(schedule.reRegister.to.date)}`);
   }
   L.push('');
   L.push(`<a href="${esc(programUrl)}">${month}월 강습프로그램 →</a>`);
-  L.push(i('공지 표를 자동으로 읽은 값이라, 신청 전 원본을 확인해 주세요.'));
   return L.join('\n');
 }
 
@@ -129,7 +131,7 @@ async function main() {
   if (!due.length) { console.log('보낼 알림 없음'); return; }
 
   for (const kind of due) {
-    const text = buildMessage(kind, { month: tm.month, matches, schedule, programUrl: program.url, signupUrl: signupPost?.url, hasSignupNotice: !!signupPost });
+    const text = buildMessage(kind, { month: tm.month, matches, schedule, programUrl: program.url, hasSignupNotice: !!signupPost, registered: CONFIG.이미등록 });
     await send(text);
     if (!forced) mark(kind);
     console.log(`발송: ${kind}`);

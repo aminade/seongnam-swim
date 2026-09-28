@@ -1,11 +1,9 @@
 name: 금곡 강습 신청 알림
 
 on:
-  schedule:
-    # 아침 8시(KST) — 새 강습 공지 인지 후 첫 알림 + 신규 접수 당일 알림
-    - cron: '7 23 * * *'
-    # 저녁 7시(KST) — 1차 추첨 신청 시작일 알림
-    - cron: '3 10 * * *'
+  # 시각은 맥의 launchd가 잡는다(scripts/mac/*.plist → 아침 8:00 / 저녁 19:00 KST).
+  # GitHub 예약 실행은 공용 큐를 타서 4시간 넘게 밀린 적이 있어(21:17 예정 → 새벽 2시 실행)
+  # 접수 시작 시각을 놓칠 수 있다. 수동 실행(workflow_dispatch)은 큐 없이 즉시 시작된다.
   workflow_dispatch:
     inputs:
       dry_run:

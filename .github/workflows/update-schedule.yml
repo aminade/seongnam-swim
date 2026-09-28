@@ -1,10 +1,9 @@
 name: 수영장 시간표 점검
 
 on:
-  schedule:
-    # 매일 오후 9시 KST — 평소엔 알림만(변경 있을 때만 발송), 매월 1일은 전체 다이제스트.
-    # 정각(:00)은 GitHub 스케줄러가 붐벼 실제 시작이 최대 100분까지 밀렸다(21:41·22:40 관측) → 어중간한 분으로.
-    - cron: '17 12 * * *'
+  # 매일 밤 9시(KST) 점검. 시각은 맥의 launchd가 잡는다(scripts/mac/com.seongnam-swim.nightly.plist).
+  # GitHub 예약 실행은 큐 지연이 심해(21:17 예정 → 새벽 1~3시 실행, 2026-09 관측) 쓰지 않는다.
+  # 어차피 실행은 이 맥에서 도므로, 맥이 꺼져 있으면 깨어난 뒤 실행된다.
   workflow_dispatch:
     inputs:
       dry_run:
