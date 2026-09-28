@@ -306,6 +306,7 @@ function buildDashboardData() {
   const propertyTimeZone = gaGetPropertyTimeZone(prop);
 
   const twentyNineDaysAgo = Utilities.formatDate(new Date(now.getTime() - 29 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
+  const oneEightyDaysAgo  = Utilities.formatDate(new Date(now.getTime() - 179 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd'); // 방문자 추이(30일씩 페이지 넘김)
   const ninetyDaysAgo     = Utilities.formatDate(new Date(now.getTime() - 89 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd'); // 유입경로 일별(최근 3개월)
 
   // ── 오늘 핵심 지표 (리셋 대상 아님 — 방문자수와 같은 분류) ──
@@ -367,6 +368,34 @@ function buildDashboardData() {
     dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
     metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
   });
+  // 지난달 같은 기간(1일~오늘 일자) — 달이 끝나지 않았으니 통째로 비교하면 항상 지는 숫자가 된다.
+  const dayOfMonth = parseInt(todayStr.slice(8, 10), 10);
+  const prevMonthEndD = new Date(now.getFullYear(), now.getMonth(), 0); // 지난달 말일
+  const prevMonthFirst = Utilities.formatDate(new Date(prevMonthEndD.getFullYear(), prevMonthEndD.getMonth(), 1), 'Asia/Seoul', 'yyyy-MM-dd');
+  const prevMonthSameDay = Utilities.formatDate(
+    new Date(prevMonthEndD.getFullYear(), prevMonthEndD.getMonth(), Math.min(dayOfMonth, prevMonthEndD.getDate())),
+    'Asia/Seoul', 'yyyy-MM-dd');
+  const prevMonthR = gaRunReport(prop, {
+    dateRanges: [{ startDate: prevMonthFirst, endDate: prevMonthSameDay }],
+    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+  });
+  // 직전 7일(비교용): 어제 기준 8~14일 전
+  const prevWeekStart = Utilities.formatDate(new Date(now.getTime() - 14 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
+  const prevWeekEnd   = Utilities.formatDate(new Date(now.getTime() - 8 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
+  const prevWeekR = gaRunReport(prop, {
+    dateRanges: [{ startDate: prevWeekStart, endDate: prevWeekEnd }],
+    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+  });
+  // 이번달 품질 지표(평균 체류시간·이탈). 평균·비율이라 시간 단위로 쪼개 합산하면 안 되므로 그대로 조회.
+  const monthQualityR = gaRunReport(prop, {
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    metrics: [{ name: 'userEngagementDuration' }, { name: 'engagedSessions' }, { name: 'sessions' }],
+  });
+  // 이번달 페이지뷰
+  const monthPageviewsR = gaRunReport(prop, {
+    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
+  });
 
   // ── 전체 누적 ── (리셋 대상 아님)
   const totalR = gaRunReport(prop, {
@@ -375,8 +404,9 @@ function buildDashboardData() {
   });
 
   // ── 30일 추이 ── (리셋 대상 아님)
+  // 대시보드가 30일 단위로 앞뒤로 넘겨 볼 수 있게 180일치를 한 번에 준다.
   const trendR = gaRunReport(prop, {
-    dateRanges: [{ startDate: twentyNineDaysAgo, endDate: todayStr }],
+    dateRanges: [{ startDate: oneEightyDaysAgo, endDate: todayStr }],
     dimensions: [{ name: 'date' }],
     metrics: [{ name: 'activeUsers' }, { name: 'newUsers' }],
     orderBys: [{ dimension: { dimensionName: 'date' } }],
@@ -739,6 +769,10 @@ function buildDashboardData() {
   // ── 방문 횟수 분포 (7/26~) ──
   const visitDist = buildVisitDistribution(prop);
 
+  // 이번달 품질 지표
+  const monthSessions = metricVal(monthQualityR, 0, 2);
+  const monthBounced  = Math.max(0, monthSessions - metricVal(monthQualityR, 0, 1));
+
   // 어제 ↔ 지난주 같은 요일 증감(방문자수 기준)
   const prevWeekVisitors = metricVal(prevWeekDayR, 0, 0);
   const visitorsDiff = prevWeekVisitors > 0
@@ -750,7 +784,13 @@ function buildDashboardData() {
     yesterday:   { date: yesterday, visitors: Math.round(ystdVisitors), sessions: Math.round(metricVal(yesterdayR, 0, 1)) },
     prevWeekDay: { date: prevWeekDay, visitors: Math.round(prevWeekVisitors), sessions: Math.round(metricVal(prevWeekDayR, 0, 1)) },
     week:        { from: weekStart, to: yesterday, visitors: Math.round(metricVal(weekR, 0, 0)), sessions: Math.round(metricVal(weekR, 0, 1)) },
-    month:       { visitors: Math.round(monthVisitors), sessions: Math.round(metricVal(monthR, 0, 1)) },
+    prevWeek:    { from: prevWeekStart, to: prevWeekEnd, visitors: Math.round(metricVal(prevWeekR, 0, 0)), sessions: Math.round(metricVal(prevWeekR, 0, 1)) },
+    month:       { visitors: Math.round(monthVisitors), sessions: Math.round(metricVal(monthR, 0, 1)),
+                   pageviews: Math.round(metricVal(monthPageviewsR, 0, 0)), pageviewsVisitors: Math.round(metricVal(monthPageviewsR, 0, 1)),
+                   avgDuration: monthSessions > 0 ? metricVal(monthQualityR, 0, 0) / monthSessions : 0,
+                   sessionsForQuality: Math.round(monthSessions), bounced: Math.round(monthBounced),
+                   bounceRate: monthSessions > 0 ? Math.round(monthBounced / monthSessions * 100) : 0 },
+    prevMonth:   { from: prevMonthFirst, to: prevMonthSameDay, visitors: Math.round(metricVal(prevMonthR, 0, 0)), sessions: Math.round(metricVal(prevMonthR, 0, 1)) },
     total:       { visitors: Math.round(totalVisitors), sessions: Math.round(metricVal(totalR, 0, 1)) },
     debug:       { todayStr, yesterday, propertyTimeZone, countStartHour: COUNT_START_HOUR },
     avgDuration,
