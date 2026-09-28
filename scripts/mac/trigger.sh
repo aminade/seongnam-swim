@@ -5,10 +5,11 @@
 # 어차피 실행 자체는 이 맥(self-hosted 러너)에서 돌기 때문에, 시각은 맥의 launchd가 잡는 편이 정확하다.
 # 수동 실행(workflow_dispatch)은 큐 대기 없이 바로 시작된다.
 #
-# 사용: trigger.sh <워크플로 파일명>
+# 사용: trigger.sh <워크플로 파일명> [gh workflow run 추가 인자…]
+#   예) trigger.sh lesson-alert.yml -f mode=morning   ← 늦게 실행돼도 아침 알림으로 처리
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 LOG="$HOME/.swim-notice/trigger.log"
 mkdir -p "$(dirname "$LOG")"
-echo "[$(date '+%F %T')] trigger $1" >> "$LOG"
-gh workflow run "$1" --repo aminade/seongnam-swim >> "$LOG" 2>&1 || echo "[$(date '+%F %T')] 실패: $1" >> "$LOG"
+echo "[$(date '+%F %T')] trigger $*" >> "$LOG"
+gh workflow run "$1" --repo aminade/seongnam-swim "${@:2}" >> "$LOG" 2>&1 || echo "[$(date '+%F %T')] 실패: $1" >> "$LOG"

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * 성남 수영장 시간표 크롤러
- * - 성남도시개발공사 6곳: 자유수영 섹션 파싱 → 변경 시 자동반영 후보(changed)
- * - 청소년청년재단 유스센터 3곳: 일일이용 섹션 파싱 → 변경 시 수동검토(youthChanged)
- * 변경 감지 시 exit 2 + JSON 출력
+ * - 성남도시개발공사 6곳: 자유수영 섹션 파싱 → 변경 시 changed
+ * - 청소년청년재단 유스센터 3곳 + 수정유스 공지: 변경 시 youthChanged
+ * 변경 감지 시 exit 2 + JSON 출력. 텔레그램 알림 전용 — 반영은 사람이 index.html과 아래 KNOWN*을 함께 고친다.
+ * (슬롯은 평일·주말 구분 없이 한 목록으로 뽑히므로 자동 반영이 불가능하다. 예전 /confirm 자동 반영은 폐지)
  */
 
 import { writeFileSync } from 'fs';
@@ -30,7 +31,7 @@ const POOLS_META = [
   { id:'geumgok',    name:'금곡공원국민체육센터', url:'https://spo.isdc.co.kr/ggp_programGuide.do' },
 ];
 
-// ── 성남시청소년청년재단 유스센터 (구조가 달라 자동반영 대신 탐지·보고 전용) ──
+// ── 성남시청소년청년재단 유스센터 (구조가 달라 별도 파서) ──
 const YOUTH_META = [
   { id:'yc_yatap',   name:'야탑유스센터', url:'https://www.snyouth.or.kr/fmcs/158' },
   { id:'yc_jungwon', name:'중원유스센터', url:'https://www.snyouth.or.kr/fmcs/57'  },
@@ -460,7 +461,7 @@ async function main() {
   const changed = results.filter(r => r.status === 'changed');
   const errors  = results.filter(r => r.status === 'error');
 
-  // ── 유스센터 (탐지·보고 전용, 자동반영 안 함) ──
+  // ── 유스센터 ──
   const youthResults = [];
   for (const pool of YOUTH_META) {
     process.stdout.write(`${pool.name} 크롤링 중... `);
@@ -509,8 +510,8 @@ async function main() {
   if (anyChanged === 0 && anyErrors === 0) {
     console.log('모든 수영장 이상 없음 ✓');
   } else {
-    if (changed.length)      console.log(`⚠️  공사 ${changed.length}곳 변경 감지 (자동반영 대상)`);
-    if (youthChanged.length) console.log(`⚠️  유스센터 ${youthChanged.length}곳 변경 감지 (수동 검토)`);
+    if (changed.length)      console.log(`⚠️  공사 ${changed.length}곳 변경 감지`);
+    if (youthChanged.length) console.log(`⚠️  유스센터 ${youthChanged.length}곳 변경 감지`);
     if (anyErrors)           console.log(`❌ ${anyErrors}곳 크롤링 실패`);
   }
 
@@ -523,22 +524,21 @@ async function main() {
     writeFileSync(process.env.GITHUB_STEP_SUMMARY, [
       `## 성남 수영장 시간표 점검 — ${today}`,
       '',
-      anyChanged ? `⚠️ **${anyChanged}곳 변경 감지** — 이슈를 확인하세요` : '✅ **모든 수영장 이상 없음**',
+      anyChanged ? `⚠️ **${anyChanged}곳 변경 감지** — 텔레그램 알림을 확인하세요` : '✅ **모든 수영장 이상 없음**',
       '',
-      '### 성남도시개발공사 (자동반영 대상)',
+      '### 성남도시개발공사',
       '| 수영장 | 상태 | 내용 |',
       '|--------|------|------|',
       publicRows,
       '',
-      '### 유스센터 (수동 검토)',
+      '### 유스센터',
       '| 수영장 | 상태 | 내용 |',
       '|--------|------|------|',
       youthRows,
     ].join('\n'));
   }
 
-  // 변경 결과를 파일로 저장 (apply workflow에서 읽음)
-  // changed = 공사(자동반영), youthChanged = 유스센터(수동 검토 — CHANGES_JSON에 넣지 않음)
+  // 변경 결과를 파일로 저장 (notify-telegram.js가 읽음)
   writeFileSync('/tmp/schedule-changes.json', JSON.stringify({ date: today, changed, errors, youthChanged, youthErrors }, null, 2));
 
   process.exit(anyChanged > 0 ? 2 : anyErrors > 0 ? 1 : 0);

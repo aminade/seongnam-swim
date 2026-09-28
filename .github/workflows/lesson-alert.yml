@@ -6,6 +6,12 @@ on:
   # 접수 시작 시각을 놓칠 수 있다. 수동 실행(workflow_dispatch)은 큐 없이 즉시 시작된다.
   workflow_dispatch:
     inputs:
+      # 맥 예약이 넘긴다(08:00 → morning, 19:00 → evening). 맥이 잠들어 실행이 12시 넘어 밀려도
+      # 아침 실행은 아침 알림으로 처리하기 위함. 비우면(손으로 실행) 실행 시각으로 판단.
+      mode:
+        description: '실행 구분(morning|evening). 비우면 실행 시각으로 판단'
+        type: string
+        default: ''
       dry_run:
         description: '테스트: 텔레그램 발송 없이 메시지만 출력'
         type: boolean
@@ -38,3 +44,4 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
           LESSON_FORCE: ${{ inputs.force }}
+          LESSON_MODE: ${{ inputs.mode }}

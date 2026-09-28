@@ -29,9 +29,10 @@ jobs:
     # 밤에 맥이 절전으로 들어가면 한없이 느려지다 취소된다(2026-09-22~24: 글 하나에 69분, 2~3시간 만에 취소).
     # caffeinate로 잠들지 않게 하고, 그래도 늦어지면 2시간에서 끊는다.
     timeout-minutes: 120
+    # 알림은 텔레그램으로만 보낸다(저장소에 쓰지 않음). actions:read는 직전 실행 시각 조회용.
     permissions:
-      contents: write
-      issues: write
+      contents: read
+      actions: read
 
     steps:
       # 잡 전체 동안 맥이 잠들지 않게 한다. 단계별 caffeinate만으로는 그 사이(checkout·gh 조회 등)에
@@ -81,6 +82,7 @@ jobs:
           [[ "$TEST_SCRIPT" =~ ^[a-zA-Z0-9._-]+\.js$ ]] || { echo "잘못된 파일명"; exit 1; }
           node "scripts/test/$TEST_SCRIPT"
 
+      # 변경이 나오면 텔레그램으로 알리기만 한다. 반영은 사람이 index.html과 이 스크립트의 기준값(KNOWN)을 고친다.
       - name: 시간표 크롤링 & 비교
         id: check
         if: inputs.test_script == ''   # 예약 실행에선 inputs가 null → ''와 같게 취급됨
@@ -115,85 +117,6 @@ jobs:
           # 추가 충전하면 이 값을 늘리고, 사용 누계는 ~/.swim-notice/state.json 의 spendUsd 를 고치면 된다.
           NOTICE_CREDIT_START: '5'
 
-      - name: 변경 감지 시 이슈 생성
-        id: issue
-        if: steps.check.outcome == 'failure'   # exit 2 = 자동반영 대상 변경(프로그램 시간표)
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const data = JSON.parse(fs.readFileSync('/tmp/schedule-changes.json', 'utf-8'));
-            const { date, changed, errors, youthChanged = [], youthErrors = [] } = data;
-
-            // 실제 변경이 없으면(크롤 오류만) 이슈 생성하지 않음 — 매일 실행 시 오류성 이슈 스팸 방지
-            if (!changed.length && !youthChanged.length) { core.setOutput('number', ''); return; }
-
-            // 변경 내용 요약 (사람이 읽기 쉽게)
-            const fmt = arr => arr.map(r => {
-              const lines = r.changes.map(c => `  - ${c.desc}`).join('\n');
-              return `### ${r.pool}\n${lines}\n[공식 사이트 확인 →](${r.url})`;
-            }).join('\n\n');
-
-            // 자동 적용을 위한 JSON (숨김) — 공사 수영장만. 유스센터는 수동 처리.
-            const changesJson = JSON.stringify(changed);
-            const allErrors = [...errors, ...youthErrors];
-
-            const publicBlock = changed.length
-              ? ['## 🏊 성남도시개발공사 (자동 반영 가능)', '', fmt(changed)]
-              : [];
-            const youthBlock = youthChanged.length
-              ? ['## 🏫 유스센터 (수동 반영 필요)', '',
-                 '> 유스센터는 계절제·요일지정 구조라 자동 반영 대상이 아닙니다. `index.html`을 직접 수정해 주세요.', '',
-                 fmt(youthChanged)]
-              : [];
-
-            const body = [
-              `## ⚠️ 시간표 변경 감지 (${date})`,
-              '',
-              '크롤러가 아래 수영장의 시간표 변경 가능성을 감지했습니다.',
-              '**공식 사이트에서 직접 확인 후** 처리해 주세요.',
-              '',
-              '---',
-              '',
-              ...publicBlock,
-              ...(publicBlock.length && youthBlock.length ? ['', '---', ''] : []),
-              ...youthBlock,
-              '',
-              '---',
-              '',
-              '## 처리 방법',
-              '',
-              changed.length ? '- **공사 수영장**: 변경이 맞으면 `/confirm`(자동 반영), 오탐이면 `/reject`' : '',
-              youthChanged.length ? '- **유스센터**: 자동 반영 안 됨 → `index.html` 수정 후 이슈를 직접 닫아주세요' : '',
-              '',
-              '| 상황 | 댓글 입력 |',
-              '|------|-----------|',
-              '| 공사 변경 내용이 맞음 → 자동 반영 | `/confirm` |',
-              '| 크롤러 오탐 → 무시 | `/reject` |',
-              '',
-              allErrors.length > 0 ? `> ⚠️ 크롤링 실패: ${allErrors.map(e=>e.pool).join(', ')}` : '',
-              '',
-              `<!-- CHANGES_JSON:${changesJson}:END -->`,
-            ].join('\n');
-
-            // 매일 실행이므로 이미 열린 schedule-update 이슈가 있으면 재사용(내용만 갱신) — 중복 이슈 방지
-            const open = await github.rest.issues.listForRepo({
-              owner: context.repo.owner, repo: context.repo.repo,
-              labels: 'schedule-update', state: 'open',
-            });
-            let number;
-            if (open.data.length) {
-              number = open.data[0].number;
-              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: number, body });
-            } else {
-              const created = await github.rest.issues.create({
-                owner: context.repo.owner, repo: context.repo.repo,
-                title: `[자동] ${date} 시간표 변경 감지`, body, labels: ['schedule-update'],
-              });
-              number = created.data.number;
-            }
-            core.setOutput('number', number);   // 텔레그램 메시지의 /confirm 링크용
-
       # 금곡 강습: 신규 접수 "전날 밤" 예고. 아침 8시 알림이 늦어질 때를 대비한 이중 안전장치다.
       - name: 금곡 강습 접수 전날 예고
         if: inputs.test_script == ''
@@ -207,7 +130,7 @@ jobs:
 
       - name: 텔레그램 발송 (알림 + 공휴일 리마인더)
         if: always() && inputs.test_script == ''   # 이상 없음이어도 월간 다이제스트로 발송(공휴일 리마인더 포함)
-        run: node scripts/notify-telegram.js ${{ steps.issue.outputs.number }}
+        run: node scripts/notify-telegram.js
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

@@ -71,22 +71,32 @@ async function main() {
     watch = { error: e.message, fresh: [], pending: [], needsImpl: [], manual: [], errors: [], stats: {} };
   }
 
-  // ── 2) 공휴일 리마인더 ──
+  // ── 2) 공휴일 점검 ──
+  // 누락·오입력 검사는 매일 "이번 달 + 다음 달"(사이트 달력이 보여 주는 범위). 임시공휴일이 급히
+  // 지정돼도 API에 올라온 다음 날 잡힌다. 월초 다이제스트의 공휴일 목록은 위 대상 월(year, month) 것만.
   let holidayInfo = null;
   const apiKey = process.env.HOLIDAY_API_KEY;
   if (apiKey) {
-    process.stdout.write(`\n${label} 공휴일 조회(data.go.kr)... `);
-    try {
-      const official = await fetchOfficialHolidays(year, month, apiKey);
-      const missing = official.filter(h => !site.HOLIDAYS.has(h.date)); // 우리 HOLIDAYS에 없는 공휴일
-      const officialDates = new Set(official.map(h => h.date));
-      const extra = [...site.HOLIDAYS].filter(d => d.startsWith(`${year}-${pad(month)}-`) && !officialDates.has(d)).sort(); // 공휴일이 아닌데 우리 HOLIDAYS에 있는 날
-      console.log(`${official.length}건${missing.length ? `, ⚠️ 우리 데이터 누락 ${missing.length}건` : ''}${extra.length ? `, ⚠️ 공휴일 아닌 날 ${extra.length}건` : ''}`);
-      holidayInfo = { year, month, official, missing, extra };
-    } catch (e) {
-      console.log(`오류: ${e.message}`);
-      holidayInfo = { year, month, error: e.message };
+    const thisY = kst.getUTCFullYear(), thisM = kst.getUTCMonth() + 1;
+    const checkMonths = [[thisY, thisM], thisM === 12 ? [thisY + 1, 1] : [thisY, thisM + 1]];
+    let official = [];
+    const missing = [], extra = [], errors = [];
+    for (const [cy, cm] of checkMonths) {
+      process.stdout.write(`\n${cy}. ${pad(cm)} 공휴일 조회(data.go.kr)... `);
+      try {
+        const got = await fetchOfficialHolidays(cy, cm, apiKey);
+        missing.push(...got.filter(h => !site.HOLIDAYS.has(h.date))); // 우리 HOLIDAYS에 없는 공휴일
+        const gotDates = new Set(got.map(h => h.date));
+        const ex = [...site.HOLIDAYS].filter(d => d.startsWith(`${cy}-${pad(cm)}-`) && !gotDates.has(d)).sort(); // 공휴일이 아닌데 우리 HOLIDAYS에 있는 날
+        extra.push(...ex);
+        if (cy === year && cm === month) official = got;
+        console.log(`${got.length}건${ex.length ? `, ⚠️ 공휴일 아닌 날 ${ex.length}건` : ''}${got.some(h => !site.HOLIDAYS.has(h.date)) ? ', ⚠️ 우리 데이터 누락 있음' : ''}`);
+      } catch (e) {
+        console.log(`오류: ${e.message}`);
+        errors.push(`${cm}월: ${e.message}`);
+      }
     }
+    holidayInfo = { year, month, official, missing, extra, ...(errors.length ? { error: errors.join(' / ') } : {}) };
   } else {
     console.log('\n(HOLIDAY_API_KEY 미설정 — 공휴일 리마인더 건너뜀)');
   }

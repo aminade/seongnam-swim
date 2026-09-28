@@ -20,6 +20,8 @@
 ## ② 예약 실행 (사용자 LaunchAgent)
 - `com.seongnam-swim.*.plist` 3개 → `~/Library/LaunchAgents/`에 설치됨. 정해진 시각에 `trigger.sh`가 GitHub 워크플로를 즉시 실행시킨다.
 - GitHub 자체 예약(cron)은 4시간 넘게 밀린 적이 있어서 쓰지 않는다.
+- 강습 예약은 `-f mode=morning`/`mode=evening`을 넘긴다 → 맥이 잠들어 실행이 늦어져도 아침 실행은 아침 알림으로 처리.
+- plist를 고치면 다시 설치: `cp scripts/mac/com.seongnam-swim.lesson-*.plist ~/Library/LaunchAgents/` 후 각각 `launchctl bootout gui/$(id -u)/<Label>` → `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/<파일>`
 - 기록: `~/.swim-notice/trigger.log`
 
 ## ③ 작업 중 잠자기 방지

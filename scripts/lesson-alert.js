@@ -13,7 +13,7 @@
  * 메시지에는 항상 원본 공지 링크를 함께 넣어 사람이 확인할 수 있게 한다.
  *
  * 환경변수: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (DRY_RUN=1이면 콘솔 출력만)
- *           LESSON_MODE=eve|morning|evening (미지정 시 현재 시각으로 판단), LESSON_FORCE=new|signup|lottery (테스트)
+ *           LESSON_MODE=eve|morning|evening (맥 예약이 지정. 미지정 시 현재 시각으로 판단), LESSON_FORCE=new|signup-eve|signup|lottery (테스트)
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -92,7 +92,10 @@ async function main() {
   const now = kstNow();
   const today = kstToday();
   const hour = now.getUTCHours(); // kstNow는 KST 벽시계를 UTC 필드로 담고 있다
-  const mode = process.env.LESSON_MODE || (hour < 12 ? 'morning' : 'evening');
+  // 맥 예약이 넘긴 구분을 우선한다(실행이 밀려도 아침 실행은 아침으로). 없거나 이상하면 실행 시각으로.
+  const given = process.env.LESSON_MODE;
+  if (given && !['morning', 'evening', 'eve'].includes(given)) console.log(`알 수 없는 LESSON_MODE="${given}" — 실행 시각으로 판단`);
+  const mode = ['morning', 'evening', 'eve'].includes(given) ? given : (hour < 12 ? 'morning' : 'evening');
   console.log(`=== 금곡 강습 알림 점검 (${today} ${hour}시 · mode=${mode}) ===`);
 
   const posts = await spoPosts(spoBoardOf(CONFIG.pool.id));

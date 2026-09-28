@@ -4,9 +4,7 @@
  * - /tmp/notice-check.json (공지 감시 + 공휴일 리마인더 + 말일 TO-DO)
  * - /tmp/schedule-changes.json (기존 program-guide 크롤 결과, 있으면 함께 요약)
  *
- * 인자: node notify-telegram.js [issueNumber]
- *   issueNumber가 주어지면 자동반영 후보에 [✅ 반영][❌ 무시] 인라인 버튼을 붙인다.
- *   버튼 callback_data: "confirm:<issue>" / "reject:<issue>" (Cloudflare Worker가 처리).
+ * 알림 전용이다. 반영은 사람이 index.html(과 크롤러 기준값)을 직접 고친다(GitHub 이슈·/confirm 자동 반영은 2026-09 폐지).
  *
  * 환경변수: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (필수)
  */
@@ -54,9 +52,10 @@ function buildMessage() {
     L.push('');
     L.push(`⚠️ ${b('시간표 변경 감지')}`);
     for (const r of [...changed, ...youthChanged]) {
-      L.push(`• ${b(r.pool)}`);
+      L.push(`• ${b(r.pool)} — <a href="${esc(r.url)}">공식 페이지</a>`);
       for (const c of r.changes) L.push(`   ↳ ${esc(c.desc)}`);
     }
+    L.push(i('맞으면 알려주세요. 사이트와 크롤러 기준값에 반영합니다(반영 전까지 매일 다시 알림).'));
   }
 
   // ── 공지 감시 (모든 게시판 새 글·수정 글 → 로컬 추출 → AI 해석 → 사이트 대조) ──
@@ -164,8 +163,9 @@ function buildMessage() {
   if (isMonthly && !anyAlert) { L.push(''); L.push('✅ 시간표·공지 이상 없음'); }
 
   if (errs.length) { L.push(''); L.push(`⚠️ 크롤 실패: ${esc(errs.join(', '))}`); }
+  if (hi?.error) { L.push(''); L.push(`⚠️ 공휴일 조회 실패: ${esc(String(hi.error).slice(0, 200))}`); }
 
-  return { lines: L, changed, anyAlert, isMonthly };
+  return { lines: L, anyAlert, isMonthly };
 }
 
 // 매월 말일 배치가 만든 다음 달 1일 TO-DO(수영장 영업 변경사항 + 이전 달 SEO 성과 기록).
@@ -216,9 +216,7 @@ async function send(text, replyMarkup) {
 }
 
 async function main() {
-  const issue = process.argv[2];                 // GitHub 이슈 번호(자동반영 후보 있을 때만)
-  const repo = process.env.GITHUB_REPOSITORY;    // "owner/repo" (Actions에서 주입)
-  const { lines, changed, anyAlert, isMonthly } = buildMessage();
+  const { lines, anyAlert, isMonthly } = buildMessage();
 
   // 매월 말일: 다음 달 1일 TO-DO는 별도 메시지로 항상 발송(점검 다이제스트 발송 여부와 무관).
   const todoLines = buildTodoLines();
@@ -226,17 +224,6 @@ async function main() {
   // 알림만 모드: 월초(1일) 다이제스트가 아니고 알릴 것도 없으면 점검 메시지는 생략(매일 실행 스팸 방지).
   // 단, 말일 TO-DO가 있으면 그것만은 보내야 하므로 조기 return 하지 않는다.
   if (!isMonthly && !anyAlert && !todoLines) { console.log('알림 없음(비월초) — 발송 건너뜀'); return; }
-
-  // 자동반영 가능한 항목이 있으면: 범위를 분명히 표시 + GitHub 이슈 링크로 /confirm 유도 (A안)
-  if (issue && changed.length > 0) {
-    lines.push('');
-    lines.push('────────────');
-    lines.push(`${b('자동 반영 가능 — 아래 항목만')}`);
-    for (const r of changed) for (const c of r.changes) lines.push(`   • ${esc(r.pool)}: ${esc(c.desc)}`);
-    const url = repo ? `https://github.com/${repo}/issues/${issue}` : null;
-    if (url) lines.push(`👉 반영하려면 <a href="${esc(url)}">이 이슈</a>에서 <code>/confirm</code> 댓글 (오탐이면 <code>/reject</code>)`);
-    lines.push(i('공지·공휴일 항목은 자동 반영되지 않습니다(수동).'));
-  }
 
   // 점검 다이제스트: 월초(1일)거나 알릴 것이 있을 때만. (말일에 이것 없이 TO-DO만 갈 수 있음)
   if (isMonthly || anyAlert) {

@@ -7,6 +7,8 @@
   <array>
     <string>/Users/mk/프로젝트/Seongnam swim/scripts/mac/trigger.sh</string>
     <string>lesson-alert.yml</string>
+    <string>-f</string>
+    <string>mode=evening</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>0</integer></dict>
