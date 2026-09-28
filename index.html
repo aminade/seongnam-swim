@@ -1290,6 +1290,8 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
           localStorage.removeItem('sw_a2hs_installed');
           localStorage.setItem('sw_a2hs_via', viaOurPrompt ? 'prompt' : 'self');
         } catch(e){}
+        // 한 번 쓰고 끈다. 안 끄면 같은 화면에서 지우고 크롬 메뉴로 재설치해도 prompt로 잡힌다.
+        viaOurPrompt = false;
       });
       // Safari vs 그 외(크롬/파폭/엣지 = 공유 아이콘이 상단)
       function browserKind(){
