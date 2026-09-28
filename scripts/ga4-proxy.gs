@@ -34,6 +34,19 @@ const PROPERTY_ID = '543917208';
 const COUNT_START_HOUR = '2026071416'; // 2026-07-14 16:00 KST
 // "홈 화면에 추가" 퍼널은 이 기능 배포일부터 누적 집계(그 이전엔 이벤트가 없음).
 const A2HS_START_DATE = '2026-07-23'; // 집계 시작일 (KST). 배포일 7/22는 개발자 테스트가 섞여 제외하고 7/23부터 클린 집계.
+// 홈 화면 설치 개발자 테스트 — 이 날짜·OS의 a2hs 이벤트는 집계에서 뺀다(같은 날 다른 OS 실사용은 유지).
+// GA4는 들어온 이벤트를 지울 수 없어서 조회할 때 뺀다. 다시 테스트하면 한 줄 추가.
+const A2HS_TEST_EXCLUDE = [
+  { date: '20260928', os: 'Android' }, // 안드로이드 설치 배포일, 폰 한 대로 반복 설치 테스트
+];
+// a2hs 이벤트 조회용 필터: 주어진 eventName 필터 AND (테스트 날짜·OS 조합이 아님)
+function a2hsFilter(eventFilter) {
+  const excludes = A2HS_TEST_EXCLUDE.map(x => ({ notExpression: { andGroup: { expressions: [
+    { filter: { fieldName: 'date', stringFilter: { value: x.date } } },
+    { filter: { fieldName: 'operatingSystem', stringFilter: { value: x.os } } },
+  ] } } }));
+  return { andGroup: { expressions: [{ filter: Object.assign({ fieldName: 'eventName' }, eventFilter) }].concat(excludes) } };
+}
 // "방문 횟수 분포"는 visit_count 이벤트(index.html) 배포일부터 집계. 그 전엔 이벤트가 없어 0.
 const VISIT_DIST_START = '2026-07-26';
 
@@ -129,7 +142,7 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
     dateRanges: [{ startDate: from, endDate: to }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'totalUsers' }, { name: 'eventCount' }],
-    dimensionFilter: { filter: { fieldName: 'eventName', inListFilter: { values: EVENTS } } },
+    dimensionFilter: a2hsFilter({ inListFilter: { values: EVENTS } }),
   });
   (R.rows || []).forEach(r => {
     const k = r.dimensionValues[0].value;
@@ -154,7 +167,7 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
     dateRanges: [{ startDate: from, endDate: to }],
     dimensions: [{ name: 'date' }, { name: 'operatingSystem' }, { name: 'customEvent:via' }],
     metrics: [{ name: 'eventCount' }],
-    dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'a2hs_installed' } } },
+    dimensionFilter: a2hsFilter({ stringFilter: { value: 'a2hs_installed' } }),
   });
   (dayInstallR.rows || []).forEach(r => {
     const d = r.dimensionValues[0].value, os = r.dimensionValues[1].value, via = r.dimensionValues[2].value;
@@ -173,7 +186,7 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
     dateRanges: [{ startDate: from, endDate: to }],
     dimensions: [{ name: 'operatingSystem' }],
     metrics: [{ name: 'totalUsers' }],
-    dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'a2hs_launch' } } },
+    dimensionFilter: a2hsFilter({ stringFilter: { value: 'a2hs_launch' } }),
   });
   const launchByOs = (LR.rows || []).map(r => ({
     name: r.dimensionValues[0].value,
@@ -652,7 +665,7 @@ function buildDashboardData() {
     dateRanges: [{ startDate: oneEightyDaysAgo, endDate: todayStr }],
     dimensions: [{ name: 'date' }],
     metrics: [{ name: 'activeUsers' }],
-    dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'a2hs_launch' } } },
+    dimensionFilter: a2hsFilter({ stringFilter: { value: 'a2hs_launch' } }),
   });
   const appByDate = {};
   (trendAppR.rows || []).forEach(r => { appByDate[r.dimensionValues[0].value] = parseInt(r.metricValues[0].value) || 0; });
