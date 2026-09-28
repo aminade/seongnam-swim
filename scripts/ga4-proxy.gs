@@ -146,6 +146,33 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
     dateRanges: [{ startDate: from, endDate: to }],
     metrics: [{ name: 'totalUsers' }, { name: 'sessions' }],
   });
+  // 날짜별: 전체 방문수(세션) + 아이콘 실행(전체/OS별). 설치 기반이 늘고 있는지 보는 용도.
+  const dayTotR = gaRunReport(prop, {
+    dateRanges: [{ startDate: from, endDate: to }],
+    dimensions: [{ name: 'date' }],
+    metrics: [{ name: 'sessions' }],
+    orderBys: [{ dimension: { dimensionName: 'date' } }],
+  });
+  const dayLaunchR = gaRunReport(prop, {
+    dateRanges: [{ startDate: from, endDate: to }],
+    dimensions: [{ name: 'date' }, { name: 'operatingSystem' }],
+    metrics: [{ name: 'eventCount' }],
+    dimensionFilter: { filter: { fieldName: 'eventName', stringFilter: { value: 'a2hs_launch' } } },
+  });
+  const byDate = {};
+  (dayTotR.rows || []).forEach(r => {
+    byDate[r.dimensionValues[0].value] = { date: r.dimensionValues[0].value, sessions: parseInt(r.metricValues[0].value) || 0, launch: 0, ios: 0, android: 0 };
+  });
+  (dayLaunchR.rows || []).forEach(r => {
+    const d = r.dimensionValues[0].value, os = r.dimensionValues[1].value;
+    const n = parseInt(r.metricValues[0].value) || 0;
+    const row = byDate[d] || (byDate[d] = { date: d, sessions: 0, launch: 0, ios: 0, android: 0 });
+    row.launch += n;
+    if (/^iOS|iPadOS$/i.test(os)) row.ios += n;
+    else if (/^Android$/i.test(os)) row.android += n;
+  });
+  const daily = Object.keys(byDate).sort().map(k => byDate[k]);
+
   // 아이콘 실행(a2hs_launch)을 OS별로도 — iOS만 안내하던 시기와 안드로이드 도입 이후를 나눠 보기 위함
   const LR = gaRunReport(prop, {
     dateRanges: [{ startDate: from, endDate: to }],
@@ -165,7 +192,7 @@ function buildA2hsFunnel(prop, fromDate, toDate) {
   return {
     startDate: from, endDate: to,
     eligible, shown, skipped: u('a2hs_skipped'),
-    later: u('a2hs_later'), never: u('a2hs_never'), launch: u('a2hs_launch'), launchByOs,
+    later: u('a2hs_later'), never: u('a2hs_never'), launch: u('a2hs_launch'), launchByOs, daily,
     showRate: eligible > 0 ? Math.round(shown / eligible * 100) : 0,
     totalUsers, totalSessions,
     // 발생 횟수(참고용) — 사람이 2·5회차에 두 번 걸릴 수 있어 사람 수와 다를 수 있음
