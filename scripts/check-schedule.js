@@ -3,6 +3,7 @@
  * 성남 수영장 시간표 크롤러
  * - 성남도시개발공사 6곳: 자유수영 섹션 파싱 → 변경 시 changed
  * - 청소년청년재단 유스센터 3곳 + 수정유스 공지: 변경 시 youthChanged
+ * - 분당올림픽(한국체육산업개발): 일일입장안내 페이지의 수영 표 → 변경 시 youthChanged에 함께 보고
  * 변경 감지 시 exit 2 + JSON 출력. 텔레그램 알림 전용 — 반영은 사람이 index.html과 아래 KNOWN*을 함께 고친다.
  * (슬롯은 평일·주말 구분 없이 한 목록으로 뽑히므로 자동 반영이 불가능하다. 예전 /confirm 자동 반영은 폐지)
  */
@@ -67,6 +68,15 @@ const KNOWN_YOUTH = {
   yc_jungwon: { closedWeeks:[2,4], slots:['08:00~08:50','12:00~12:50','15:00~15:50','20:00~20:50','06:30~08:00','09:00~10:30','11:00~12:30','13:30~15:00','15:30~17:00','17:30~19:00'] },
   yc_pangyo:  { closedWeeks:[1,3], slots:['08:00~08:50','14:00~14:50','06:30~08:00','09:00~10:30','11:00~12:30','13:30~15:00','15:30~17:00','18:00~19:30'] },
 };
+
+// ── 분당올림픽스포츠센터 (한국체육산업개발 — 공사 사이트와 마크업이 달라 별도 파서) ──
+// 일일입장안내 페이지의 '수영' 표: 행 머리글(평일 / 토·일·공휴일) + 운영시간 칸.
+const KSP_META = {
+  id: 'bdolympic',
+  name: '분당올림픽스포츠센터',
+  url: 'https://www.ksponco.or.kr/sports/menu.es?mid=b10204000000',
+};
+const KNOWN_KSP = { closedWeeks:[2], weekdaySlots:['13:00~14:50','18:00~18:50'], weekendSlots:['09:00~12:50','14:00~17:50'], adultPrice:6000 };
 
 function mins(t) { const [h,m] = t.split(':').map(Number); return h*60+m; }
 function pad2(t) { const [h,m] = t.split(':'); return `${h.padStart(2,'0')}:${m}`; }
@@ -349,6 +359,50 @@ function diffYouth(id, crawled) {
   return changes;
 }
 
+// '수영' h4 제목부터 다음 h4(스케이트)까지가 수영 표. 행마다 <th scope="row">구분</th><td>시간<br/>시간</td>.
+function parseKspSwim(html) {
+  const start = html.search(/<h4[^>]*>\s*수영\s*<\/h4>/);
+  if (start === -1) return null;
+  const next = html.indexOf('<h4', start + 10);
+  const section = html.slice(start, next === -1 ? start + 6000 : next);
+  const slotsOf = cell => [...cell.replace(/<[^>]+>/g, ' ').matchAll(/(\d{1,2}:\d{2})\s*[~～]\s*(\d{1,2}:\d{2})/g)].map(m => `${pad2(m[1])}~${pad2(m[2])}`);
+  const rows = [...section.matchAll(/<th[^>]*scope="row"[^>]*>([\s\S]*?)<\/th>\s*<td>([\s\S]*?)<\/td>/g)];
+  const weekday = rows.find(r => /평일/.test(r[1]));
+  const weekend = rows.find(r => /토|공휴일/.test(r[1]));
+  const price = (section.replace(/<[^>]+>/g, ' ').match(/만\s*19세\s*이상\s*([\d,]+)/) || [])[1];
+  // 정기휴관: 페이지 머리 문구 "매월 두번째 일요일은 정기 휴관일" (한글 서수)
+  const ORD = { '첫':1, '두':2, '둘':2, '세':3, '셋':3, '네':4, '넷':4, '다섯':5 };
+  const w = (html.replace(/<[^>]+>/g, ' ').match(/매월\s*(첫|두|둘|세|셋|네|넷|다섯)\s*번?째\s*일요일[^.]{0,10}휴관/) || [])[1];
+  return {
+    weekdaySlots: weekday ? slotsOf(weekday[2]) : [],
+    weekendSlots: weekend ? slotsOf(weekend[2]) : [],
+    adultPrice: price ? +price.replace(/,/g, '') : null,
+    closedWeeks: w ? [ORD[w]] : null,
+    sectionLength: section.length,
+  };
+}
+
+async function crawlKsp(meta) {
+  try { return parseKspSwim(await fetchText(meta.url)) || { error: '수영 표를 찾지 못함 — 페이지 구조 변경 의심' }; }
+  catch (e) { return { error: e.message }; }
+}
+
+function diffKsp(crawled) {
+  const k = KNOWN_KSP;
+  const changes = [];
+  const cmp = (field, label, a, b) => {
+    if (!b.length) return; // 못 뽑았으면 비교하지 않는다(오탐 방지) — 둘 다 못 뽑으면 아래에서 파싱 실패로 처리
+    if (JSON.stringify(a) !== JSON.stringify(b)) changes.push({ field, old: a, new: b, desc: `${label}: ${a.join(', ')} → ${b.join(', ')}` });
+  };
+  cmp('weekdaySlots', '평일 시간', k.weekdaySlots, crawled.weekdaySlots);
+  cmp('weekendSlots', '토·일·공휴일 시간', k.weekendSlots, crawled.weekendSlots);
+  if (crawled.adultPrice && crawled.adultPrice !== k.adultPrice)
+    changes.push({ field: 'adultPrice', old: k.adultPrice, new: crawled.adultPrice, desc: `성인 요금: ${k.adultPrice}원 → ${crawled.adultPrice}원` });
+  if (crawled.closedWeeks && JSON.stringify(crawled.closedWeeks) !== JSON.stringify(k.closedWeeks))
+    changes.push({ field: 'closedWeeks', old: k.closedWeeks, new: crawled.closedWeeks, desc: `정기휴관: 매월 ${k.closedWeeks.join('·')}번째 → ${crawled.closedWeeks.join('·')}번째 일요일` });
+  return changes;
+}
+
 const noticeUrl = (cfg, actionValue) => `${cfg.boardUrl}?action=read&action-value=${actionValue}`;
 
 const decodeEntities = s => s
@@ -480,6 +534,31 @@ async function main() {
       console.log(`  → ⚠️ 변경 감지! (수동 검토 필요)`);
       changes.forEach(c => console.log(`     ${c.desc}`));
       youthResults.push({ id: pool.id, pool: pool.name, url: pool.url, status: 'changed', changes });
+    }
+  }
+  // 분당올림픽: 운영 주체가 달라 공사/유스 파서를 못 쓴다 — 결과는 '유스센터' 묶음에 함께 보고한다(텔레그램은 수영장 이름으로 표시).
+  process.stdout.write(`${KSP_META.name} 크롤링 중... `);
+  {
+    const crawled = await crawlKsp(KSP_META);
+    const base = { id: KSP_META.id, pool: KSP_META.name, url: KSP_META.url };
+    if (crawled.error) {
+      console.log(`오류: ${crawled.error}`);
+      youthResults.push({ ...base, status: 'error', error: crawled.error });
+    } else if (!crawled.weekdaySlots.length || !crawled.weekendSlots.length) {
+      // 평일·주말 중 한쪽이라도 못 뽑으면 '이상 없음'이 아니라 파싱 실패
+      console.log(`(수영 표 ${crawled.sectionLength}자) → ❌ 슬롯 파싱 실패`);
+      youthResults.push({ ...base, status: 'error', error: `슬롯 파싱 실패(수영 표 ${crawled.sectionLength}자) — 페이지 구조 변경 의심` });
+    } else {
+      console.log(`(수영 표 ${crawled.sectionLength}자, 평일 ${crawled.weekdaySlots.length}·주말 ${crawled.weekendSlots.length}슬롯)`);
+      const changes = diffKsp(crawled);
+      if (changes.length === 0) {
+        console.log(`  → 이상 없음 ✓`);
+        youthResults.push({ ...base, status: 'ok' });
+      } else {
+        console.log(`  → ⚠️ 변경 감지! (수동 검토 필요)`);
+        changes.forEach(c => console.log(`     ${c.desc}`));
+        youthResults.push({ ...base, status: 'changed', changes });
+      }
     }
   }
   // 수정유스센터: 시범운영 공지 감시 (정식 페이지 미반영 기간 한정)
