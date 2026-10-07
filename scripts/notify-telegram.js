@@ -94,9 +94,6 @@ function buildMessage() {
     L.push('');
     L.push(`🔑 ${b('AI 해석 불가')} — 링크 안내로 전환했어요.`);
     L.push(`   ↳ ${esc(String(w.aiBlocked).slice(0, 200))}`);
-  } else if (!w.hasKey && selfCheck.length) {
-    L.push('');
-    L.push(`🔑 ${b('AI 미사용 모드')} — 아래 글은 직접 확인해 주세요.`);
   }
   if (selfCheck.length) {
     L.push('');
@@ -104,6 +101,11 @@ function buildMessage() {
     for (const m of selfCheck.slice(0, 12)) L.push(`• ${b(m.poolName)} 「${esc(m.title)}」 — ${link(m)}`);
     if (selfCheck.length > 12) L.push(i(`외 ${selfCheck.length - 12}건 (다음 점검에서 다시 알리지 않아요)`));
     L.push(i('휴장·운영 변경이 있으면 알려주세요. 사이트에 반영합니다.'));
+  }
+  // 누적 안 읽은 글 수 — 얼마나 밀렸는지 가늠하고, 쌓였다 싶으면 Claude에게 확인을 맡긴다.
+  if (w.unread?.count > 0) {
+    L.push('');
+    L.push(`📚 ${b(`안 읽은 공지 누적 ${w.unread.count}건`)}${w.unread.oldest ? i(` (가장 오래된 글 ${esc(w.unread.oldest)})`) : ''}`);
   }
   if (manual.length) {
     L.push('');

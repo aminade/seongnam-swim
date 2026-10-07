@@ -158,7 +158,9 @@ function saveState(state) {
 }
 
 export async function watchNotices({ site, log = console.log, today = new Date() } = {}) {
-  const hasKey = !!process.env.ANTHROPIC_API_KEY;
+  // 2026-10-07: API는 쓰지 않는다(사용자 결정). 새 운영 관련 글은 'no-key'(= 안 읽음)로 쌓고 제목만 텔레그램으로 알린다.
+  // 사람이 Claude에게 확인을 맡기면 읽고 'manual-ok'로 바꾼다(scripts/notice-mark-read.js). 다시 쓰려면 NOTICE_USE_AI=1.
+  const hasKey = process.env.NOTICE_USE_AI === '1' && !!process.env.ANTHROPIC_API_KEY;
   const prev = loadState();
   const firstRun = !prev;
   const state = prev || { version: 1, posts: {} };
@@ -299,5 +301,8 @@ export async function watchNotices({ site, log = console.log, today = new Date()
   const start = parseFloat(process.env.NOTICE_CREDIT_START || '');
   const credit = Number.isFinite(start) ? { start, spent: state.spendUsd, left: +(start - state.spendUsd).toFixed(2) } : null;
 
-  return { firstRun, hasKey, aiBlocked, aiBlockedKind, deferred, credit, model: NOTICE_MODEL, fresh, pending, needsImpl, manual, errors, stats };
+  // 안 읽은 글(누적): 상태 파일에서 'no-key'로 남아 있는 것. 사람이 확인하면 줄어든다.
+  const unreadList = Object.values(state.posts).filter(e => e.status === 'no-key');
+  const unread = { count: unreadList.length, oldest: unreadList.map(e => e.date).filter(Boolean).sort()[0] || null };
+  return { firstRun, hasKey, unread, aiBlocked, aiBlockedKind, deferred, credit, model: NOTICE_MODEL, fresh, pending, needsImpl, manual, errors, stats };
 }
