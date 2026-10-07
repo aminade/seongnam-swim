@@ -105,7 +105,8 @@ function buildMessage() {
   // 누적 안 읽은 글 수 — 얼마나 밀렸는지 가늠하고, 쌓였다 싶으면 Claude에게 확인을 맡긴다.
   if (w.unread?.count > 0) {
     L.push('');
-    L.push(`📚 ${b(`안 읽은 공지 누적 ${w.unread.count}건`)}${w.unread.oldest ? i(` (가장 오래된 글 ${esc(w.unread.oldest)})`) : ''}`);
+    const [, om, od] = (w.unread.oldest || '').match(/^\d{4}-(\d+)-(\d+)/) || [];
+    L.push(`📚 ${b(`안 읽은 공지 누적 ${w.unread.count}건`)}${om ? ` (${+om}/${+od}~)` : ''}`);
   }
   if (manual.length) {
     L.push('');

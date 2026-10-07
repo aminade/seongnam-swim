@@ -15,6 +15,10 @@
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
 export async function fetchRes(url, opts = {}, tries = 3) {
+  // opts.backoff: 재시도 간격 기본값(ms, 시도마다 배수로 늘어남) · opts.tries: 시도 횟수(인자보다 우선)
+  const { backoff = 2000, tries: triesOpt, ...fetchOpts } = opts;
+  opts = fetchOpts;
+  if (triesOpt) tries = triesOpt;
   let lastErr;
   for (let i = 0; i < tries; i++) {
     try {
@@ -28,7 +32,7 @@ export async function fetchRes(url, opts = {}, tries = 3) {
     } catch (e) {
       const cause = e.cause ? ` (${e.cause.code || e.cause.message || e.cause})` : '';
       lastErr = new Error(`${e.message}${cause} — ${url}`);
-      if (i < tries - 1) await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+      if (i < tries - 1) await new Promise(r => setTimeout(r, backoff * (i + 1)));
     }
   }
   throw lastErr;
@@ -72,12 +76,15 @@ export const SPO_BOARDS = [
   { up_id: '06', poolId: 'geumgok',    poolName: '금곡공원국민체육센터' },
 ];
 const SPO = 'https://spo.isdc.co.kr';
+// 성남도개공 서버는 응답(본문 이미지로 1MB+)을 도중에 끊는 일이 잦다(SocketError: other side closed) → 5회·10초 간격(10·20·30·40초 대기)
+const SPO_TRIES = 5;
+const SPO_BACKOFF = 10000;
 export const spoPostUrl = (up_id, idx) => `https://swim.andlife.app/n.html?b=${up_id}&i=${encodeURIComponent(idx)}`;
 
 // 게시판 AJAX는 세션 쿠키를 요구할 수 있어 notice0N.do를 먼저 GET해 쿠키를 받는다.
 async function spoCookie(up_id) {
   try {
-    const res = await fetchRes(`${SPO}/notice${up_id}.do`, { timeout: 20000 });
+    const res = await fetchRes(`${SPO}/notice${up_id}.do`, { timeout: 20000, backoff: SPO_BACKOFF, tries: SPO_TRIES });
     const sc = res.headers.get('set-cookie');
     return sc ? sc.split(',').map(s => s.split(';')[0].trim()).join('; ') : '';
   } catch { return ''; }
@@ -92,7 +99,7 @@ export async function spoPosts(board) {
     Referer: boardUrl, Origin: SPO, ...(cookie ? { Cookie: cookie } : {}),
   };
   const text = await fetchText(`${SPO}/selectNoticeList.ajax`, {
-    method: 'POST', timeout: 40000, headers, // 본문에 base64 이미지가 들어 있어 응답이 1MB+
+    method: 'POST', timeout: 40000, backoff: SPO_BACKOFF, tries: SPO_TRIES, headers, // 본문에 base64 이미지가 들어 있어 응답이 1MB+
     body: new URLSearchParams({ searchWord: '', page: '1', perPageNum: '10', brd_flg: '1', up_id }),
   });
   const rows = JSON.parse(text).data || [];
@@ -102,7 +109,7 @@ export async function spoPosts(board) {
       name: f.name, ext: extOf(f.name),
       load: async () => {
         const buf = await fetchBuf(`${SPO}/downloadFile.ajax`, {
-          method: 'POST', timeout: 60000,
+          method: 'POST', timeout: 60000, backoff: SPO_BACKOFF, tries: SPO_TRIES,
           headers: { ...headers, Referer: `${SPO}/goNoticeView.do` },
           body: new URLSearchParams({ idx: String(r.idx), file_no: String(f.no), brd_flg: String(r.brd_flg || '1'),
             file_a: r.file_a || '', file_b: r.file_b || '', file_c: r.file_c || '' }),
