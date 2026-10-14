@@ -583,7 +583,7 @@ document.addEventListener('DOMContentLoaded', function() {
         saturdaySlots:[{time:'07:00~08:50',dur:120},{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         weekdayPrice:{adult:3600,teen:3000,child:2400}, weekendPrice:{adult:3600,teen:3000,child:2400} },
-      { id:'seongnam', name:'성남종합운동장', area:'수정구 신흥동', url:'https://spo.isdc.co.kr/sns_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', extraClosedRanges:[['2026-11-02','2026-11-13']], /* 임시휴장: 10/7 공지(수영장 시설개선 공사 11/2~11/13, 공사 진행에 따라 변경 가능) */ feature:'50m 풀',
+      { id:'seongnam', name:'성남종합운동장', area:'수정구 신흥동', url:'https://spo.isdc.co.kr/sns_programGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', extraClosedRanges:[['2026-10-24','2026-10-24'],['2026-11-02','2026-11-13']], /* 임시휴장: 10/14 공지(10/24 희망성남 한마음 체육·문화대축제로 전체 휴장) · 10/7 공지(수영장 시설개선 공사 11/2~11/13, 공사 진행에 따라 변경 가능) */ feature:'50m 풀',
         weekdaySlots:[{time:'06:00~07:50',dur:120},{time:'09:00~10:50',dur:120},{time:'12:00~13:50',dur:120},{time:'19:00~20:50',dur:120}],
         saturdaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
@@ -642,7 +642,13 @@ document.addEventListener('DOMContentLoaded', function() {
         sundaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
         weekdayPrice:{adult:3000,teen:2500,child:1900}, weekendPrice:{adult:3000,teen:2500,child:1900}, priceNote:'성남시 관내 거주 만 48개월~만 18세 무료(회원가입 필요)' },
       // 수정유스센터: 신축 건물 시범운영 중(2026-07-25~별도 공지시까지). 정식 페이지(fmcs/32) 미반영, 공지사항(fmcs/22)만 근거.
-      { id:'yc_sujeong', name:'수정유스센터', area:'수정구 신흥동', url:'https://www.snyouth.or.kr/fmcs/22?action=read&action-value=7328334a4cc9faa679e34190215a7e1a', closedWeeks:[1,2,3,4,5], closedOnHoliday:'all', startsOn:'2026-07-25', feature:'유스센터 · 시범운영',
+      { id:'yc_sujeong', name:'수정유스센터', area:'수정구 신흥동', url:'https://www.snyouth.or.kr/fmcs/22?action=read&action-value=7328334a4cc9faa679e34190215a7e1a', closedWeeks:[1,3], extraClosedDates:['2026-10-25'] /* 시범운영 중 일요일 미운영(11/2 정식 운영 전 마지막 4째 일요일) */, closedOnHoliday:'all', startsOn:'2026-07-25', feature:'유스센터 · 시범운영',
+        // 11/2부터 정식 운영(10/13 공지 '11월 자유수영 일일발권'): 평일 3타임, 주말 4부(90분), 요금 유료. 휴관일은 1·3주 일요일·법정공휴일.
+        specialSchedules:[{from:'2026-11-02', note:'11월 정식 운영 — 일일자유수영 유료(관내 청소년 만48개월~만18세 무료·회원가입 필수)',
+          weekdaySlots:[{time:'10:00~10:50',dur:50},{time:'11:00~11:50',dur:50},{time:'12:00~12:50',dur:50}],
+          saturdaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
+          sundaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
+          weekdayPrice:{adult:3000,teen:2500,child:1900}, weekendPrice:{adult:3000,teen:2500,child:1900} }],
         weekdaySlots:[{time:'09:00~10:30',dur:90},{time:'13:30~15:00',dur:90}],
         saturdaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
         sundaySlots:[],
@@ -1458,7 +1464,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       try {
         var K = 'sw_visits_all';
         var n = (parseInt(localStorage.getItem(K) || '0', 10) || 0) + 1;
-        localStorage.setItem(K, String(n > 999 ? 999 : n));
+        localStorage.setItem(K, String(n > 99 ? 99 : n));
         gtag('event', 'visit_count', { visit_no: n > 99 ? 99 : n });
       } catch(e){}
     })();
