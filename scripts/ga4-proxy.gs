@@ -27,7 +27,7 @@ const PROPERTY_ID = '543917208';
 // 리셋 대상(이 시각부터 다시 셈): 탭 사용 현황, 수영장별 상세정보 보기(펼치기),
 //   한강 페이지 방문/이탈/시설별 관심도/예약 클릭. — 전부 "개발자가 눌러본 클릭"과
 //   섞이는 인터랙션 이벤트라서 리셋 대상.
-// 리셋 대상 아님(그대로 전체 기간 반영): 방문자수(오늘/어제/이번달/누적/추이/요일별),
+// 리셋 대상 아님(그대로 전체 기간 반영): 방문자수(오늘/어제/최근 30일/누적/추이/요일별),
 //   방문 지역, 기기 유형, 유입 경로, 재방문 패턴. — 이미 실방문자 기준으로 정상 집계되고
 //   있다고 판단해서 리셋 안 함. 새 지표를 추가할 때도 이 두 분류 중 어디에 속하는지
 //   먼저 정하고 맞는 쪽 헬퍼(gaRunReport vs gaRunReportSinceHour)를 쓸 것.
@@ -235,7 +235,7 @@ function buildVisitDistribution(prop) {
     (R.rows || []).forEach(r => {
       const k = parseInt(r.dimensionValues[0].value, 10);
       if (!k || k < 1) return; // '(not set)' 등은 무시
-      atLeast[Math.min(k, 99)] = Math.round(parseFloat(r.metricValues[0].value) || 0);
+      atLeast[Math.min(k, 999)] = Math.round(parseFloat(r.metricValues[0].value) || 0);
     });
     const ge = k => atLeast[k] || 0;               // ≥k회 방문자
     const exact = k => Math.max(0, ge(k) - ge(k + 1)); // 정확히 k회
@@ -346,10 +346,8 @@ function buildDashboardData() {
   // 해석된다. 그 타임존이 Asia/Seoul이 아니면 "오늘"이 한국 기준 오늘이 아닐 수 있어서,
   // 모든 날짜를 이렇게 명시적으로 Asia/Seoul 기준 문자열로 고정해 쓴다.
   const todayStr = Utilities.formatDate(now, 'Asia/Seoul', 'yyyy-MM-dd');
-  const firstOfMonth = Utilities.formatDate(
-    new Date(now.getFullYear(), now.getMonth(), 1),
-    'Asia/Seoul', 'yyyy-MM-dd'
-  );
+  // 대시보드의 '기간' 지표는 달력 월이 아니라 최근 30일(오늘 포함) — 월초에 하루치 표본으로 튀는 것을 막는다. (응답 키 month/prevMonth 이름은 호환 때문에 유지)
+  const rangeStart30 = Utilities.formatDate(new Date(now.getTime() - 29 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
   const yesterday = Utilities.formatDate(
     new Date(now.getTime() - 86400000),
     'Asia/Seoul', 'yyyy-MM-dd'
@@ -414,18 +412,14 @@ function buildDashboardData() {
     metrics: [{ name: 'userEngagementDuration' }, { name: 'engagedSessions' }, { name: 'sessions' }],
   });
 
-  // ── 이번달 ── (방문자수 집계는 리셋 대상 아님 — 클램프 안 함)
+  // ── 최근 30일 ── (방문자수 집계는 리셋 대상 아님 — 클램프 안 함)
   const monthR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
   });
-  // 지난달 같은 기간(1일~오늘 일자) — 달이 끝나지 않았으니 통째로 비교하면 항상 지는 숫자가 된다.
-  const dayOfMonth = parseInt(todayStr.slice(8, 10), 10);
-  const prevMonthEndD = new Date(now.getFullYear(), now.getMonth(), 0); // 지난달 말일
-  const prevMonthFirst = Utilities.formatDate(new Date(prevMonthEndD.getFullYear(), prevMonthEndD.getMonth(), 1), 'Asia/Seoul', 'yyyy-MM-dd');
-  const prevMonthSameDay = Utilities.formatDate(
-    new Date(prevMonthEndD.getFullYear(), prevMonthEndD.getMonth(), Math.min(dayOfMonth, prevMonthEndD.getDate())),
-    'Asia/Seoul', 'yyyy-MM-dd');
+  // 직전 30일(비교용): 오늘 기준 59~30일 전
+  const prevMonthFirst   = Utilities.formatDate(new Date(now.getTime() - 59 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
+  const prevMonthSameDay = Utilities.formatDate(new Date(now.getTime() - 30 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
   const prevMonthR = gaRunReport(prop, {
     dateRanges: [{ startDate: prevMonthFirst, endDate: prevMonthSameDay }],
     metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
@@ -437,14 +431,14 @@ function buildDashboardData() {
     dateRanges: [{ startDate: prevWeekStart, endDate: prevWeekEnd }],
     metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
   });
-  // 이번달 품질 지표(평균 체류시간·이탈). 평균·비율이라 시간 단위로 쪼개 합산하면 안 되므로 그대로 조회.
+  // 최근 30일 품질 지표(평균 체류시간·이탈). 평균·비율이라 시간 단위로 쪼개 합산하면 안 되므로 그대로 조회.
   const monthQualityR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     metrics: [{ name: 'userEngagementDuration' }, { name: 'engagedSessions' }, { name: 'sessions' }],
   });
-  // 이번달 페이지뷰
+  // 최근 30일 페이지뷰
   const monthPageviewsR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
   });
 
@@ -463,43 +457,43 @@ function buildDashboardData() {
     orderBys: [{ dimension: { dimensionName: 'date' } }],
   });
 
-  // ── 요일별 (이번달, 리셋 대상 아님) ──
+  // ── 요일별 (최근 30일, 리셋 대상 아님) ──
   const dowR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'dayOfWeek' }],
     metrics: [{ name: 'activeUsers' }],
   });
 
   // ── 시간대별 (오늘) ──
-  // 시간대별: 하루치는 표본이 너무 작아 이번달 누적으로 본다.
+  // 시간대별: 하루치는 표본이 너무 작아 최근 30일 누적으로 본다.
   const hourlyR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'hour' }],
     metrics: [{ name: 'activeUsers' }],
     orderBys: [{ dimension: { dimensionName: 'hour' } }],
   });
 
-  // ── 기기 유형 (이번달, 리셋 대상 아님) ──
+  // ── 기기 유형 (최근 30일, 리셋 대상 아님) ──
   const deviceR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'deviceCategory' }],
     metrics: [{ name: 'activeUsers' }],
   });
 
-  // ── OS (이번달 + 최근 90일) ──
+  // ── OS (최근 30일 + 최근 90일) ──
   // deviceCategory는 모바일/데스크톱/태블릿만 구분해 iOS·안드로이드 비율을 알 수 없다.
   // '홈 화면에 추가'는 iOS에서만 띄우고 있어서, 안드로이드 비중을 봐야 설치 버튼 구현 여부를 판단할 수 있다.
   const osR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'operatingSystem' }],
     metrics: [{ name: 'activeUsers' }],
   });
-  // ── 유입 경로 (이번달, 리셋 대상 아님) ──
+  // ── 유입 경로 (최근 30일, 리셋 대상 아님) ──
   // 전체 = distinct activeUsers(소스별). 신규/재방문은 GA4 실제 newVsReturning 차원으로 분류한다.
-  // (예전엔 재방문=activeUsers−newUsers로 뺐는데, 오픈<1개월 신생 사이트에선 '이번달 신규'가
+  // (예전엔 재방문=activeUsers−newUsers로 뺐는데, 오픈<1개월 신생 사이트에선 '최근 30일 신규'가
   //  거의 전원이라 재방문이 0으로 붕괴했다 — newVsReturning은 기간에 안 흔들려 정확하다.)
   const sourceR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'sessionSource' }],
     metrics: [{ name: 'activeUsers' }],
     orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
@@ -507,7 +501,7 @@ function buildDashboardData() {
   });
   // 소스 × 신규/재방문 (activeUsers) — 소스별 신규/재방문 사용자 수를 실제 분류로 얻는다.
   const sourceNvrR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'sessionSource' }, { name: 'newVsReturning' }],
     metrics: [{ name: 'activeUsers' }],
   });
@@ -520,9 +514,9 @@ function buildDashboardData() {
     orderBys: [{ dimension: { dimensionName: 'date' } }],
   });
 
-  // ── 지역 (이번달, 리셋 대상 아님) ──
+  // ── 지역 (최근 30일, 리셋 대상 아님) ──
   const cityR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'city' }],
     metrics: [{ name: 'activeUsers' }],
     orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
@@ -531,7 +525,7 @@ function buildDashboardData() {
 
   // ── 탭 클릭 (COUNT_START_HOUR부터, 리셋 대상) ──
   const tabR = gaRunReportSinceHour(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'eventCount' }],
     dimensionFilter: {
@@ -543,7 +537,7 @@ function buildDashboardData() {
   // orderBys는 dateHour로 쪼개기 전 원본 쿼리 기준이라 재집계 후엔 의미가 없다 —
   // 정렬은 아래 파싱 단계에서 clicks 기준으로 다시 한다.
   const poolR = gaRunReportSinceHour(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'eventCount' }],
     dimensionFilter: {
@@ -552,9 +546,9 @@ function buildDashboardData() {
   });
 
   // 수영장별 "클릭한 사람 수". totalUsers는 중복 제거 지표라 시간 단위로 쪼개 합산할 수 없어
-  // (gaRunReportSinceHour 사용 불가) 이번달 전체 범위로 그대로 조회한다.
+  // (gaRunReportSinceHour 사용 불가) 최근 30일 전체 범위로 그대로 조회한다.
   const poolUsersR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'totalUsers' }],
     dimensionFilter: {
@@ -568,7 +562,7 @@ function buildDashboardData() {
   // 여러 번 들어와도 sessions 지표는 세션 단위로 묶여서 중복 집계되지 않는다.
   // pagePath가 아니라 pageTitle로 거르는 이유: pagePath는 GitHub Pages 서브경로에 좌우된다.
   const hangangViewR = gaRunReportSinceHour(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     metrics: [{ name: 'sessions' }],
     dimensionFilter: {
       filter: { fieldName: 'pageTitle', stringFilter: { matchType: 'EXACT', value: HANGANG_PAGE_TITLE } },
@@ -577,7 +571,7 @@ function buildDashboardData() {
 
   // ── 한강 페이지 이탈(성남으로 돌아가기) (COUNT_START_HOUR부터) ──
   const hangangBackR = gaRunReportSinceHour(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     metrics: [{ name: 'eventCount' }],
     dimensionFilter: {
       filter: { fieldName: 'eventName', stringFilter: { matchType: 'EXACT', value: 'hangang_back' } },
@@ -586,7 +580,7 @@ function buildDashboardData() {
 
   // ── 한강 시설별 펼치기 (COUNT_START_HOUR부터) ──
   const hangangPoolR = gaRunReportSinceHour(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'eventCount' }],
     dimensionFilter: {
@@ -596,7 +590,7 @@ function buildDashboardData() {
 
   // ── 한강 네이버 예약 클릭 (COUNT_START_HOUR부터) ──
   const hangangBookR = gaRunReportSinceHour(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'eventName' }],
     metrics: [{ name: 'eventCount' }],
     dimensionFilter: {
@@ -618,10 +612,10 @@ function buildDashboardData() {
     orderBys: [{ dimension: { dimensionName: 'dateHour' } }],
   });
 
-  // ── 신규 vs 재방문 (이번달) ──
+  // ── 신규 vs 재방문 (최근 30일) ──
   // sessionsPerUser(1인당 평균 세션 수)를 같이 받아 재방문자의 평균 방문 횟수로 쓴다.
   const nvrR = gaRunReport(prop, {
-    dateRanges: [{ startDate: firstOfMonth, endDate: todayStr }],
+    dateRanges: [{ startDate: rangeStart30, endDate: todayStr }],
     dimensions: [{ name: 'newVsReturning' }],
     metrics: [{ name: 'activeUsers' }, { name: 'sessionsPerUser' }],
   });
@@ -703,7 +697,7 @@ function buildDashboardData() {
     .sort((a, b) => b.users - a.users);
   const os = { month: osList(osR) };
 
-  // 유입 경로 (이번달) — 전체=distinct activeUsers, 신규/재방문=newVsReturning 실제 분류
+  // 유입 경로 (최근 30일) — 전체=distinct activeUsers, 신규/재방문=newVsReturning 실제 분류
   const nvrBySource = {}; // source → {new, returning}
   (sourceNvrR.rows || []).forEach(r => {
     const src  = r.dimensionValues[0].value;
@@ -844,7 +838,7 @@ function buildDashboardData() {
   // ── 방문 횟수 분포 (7/26~) ──
   const visitDist = buildVisitDistribution(prop);
 
-  // 이번달 품질 지표
+  // 최근 30일 품질 지표
   const monthSessions = metricVal(monthQualityR, 0, 2);
   const monthBounced  = Math.max(0, monthSessions - metricVal(monthQualityR, 0, 1));
 
