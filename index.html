@@ -578,7 +578,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const HIGHLIGHT_DEEP = props.highlightDeep !== false;
 
     const POOLS = [
-      { id:'tanchen', name:'탄천종합운동장', area:'분당구 야탑동', url:'https://spo.isdc.co.kr/tan_programGuide.do', closedWeeks:[1,3], closedOnHoliday:'lunar', notOperating:[{from:'2026-12-01',to:'2026-12-31',label:'12월 50M 수영장 전광판 공사 휴장'}], /* 미운영: 11/5 공지(50M 수영장 전광판 교체 공사, 12/1~12/31 강습·월자유·일일자유 중단, 25M는 정상운영) */ feature:'50m 풀',
+      { id:'tanchen', name:'탄천종합운동장', area:'분당구 야탑동', url:'https://spo.isdc.co.kr/tan_programGuide.do', closedWeeks:[1,3], closedOnHoliday:'lunar', feature:'50m 풀',
+        // 12/1~12/31: 11/5 공지(50M 수영장 전광판 교체 공사 — 50M 강습·월자유·일일자유 중단, 25M 정상운영). 공식 시간표상 25M 일일자유는 토·일·공휴일만 → 평일 슬롯 없음, 주말·공휴일은 25M로 운영.
+        specialSchedules:[{from:'2026-12-01',to:'2026-12-31', feature:'25m 풀 운영 · 50m 휴장', note:'50M 수영장은 12/1~12/31 휴장, 25M 수영장은 정상 운영(자유수영은 토·일·공휴일만)',
+          weekdaySlots:[], noSlotsReason:'50M 수영장은 12/1~12/31 휴장' }],
         weekdaySlots:[{time:'06:00~07:50',dur:120,note:'상급자·수심 2m'},{time:'12:00~13:50',dur:120},{time:'15:00~16:50',dur:120},{time:'19:00~20:50',dur:120,note:'상급자·수심 2m'}],
         saturdaySlots:[{time:'07:00~08:50',dur:120},{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
@@ -732,6 +735,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       if(isExtraClosed(pool,date)) return '임시휴장';
       if(pool.closedOnHoliday==='all' && isHoliday(date)) return '공휴일 휴관';
       if(pool.closedOnHoliday==='lunar' && isLunarHoliday(date)) return '설·추석 연휴 휴장';
+      { const sp=specialFor(pool,date); if(sp && sp.noSlotsReason && !slotsFor(pool,date).length) return sp.noSlotsReason; } // 특별 운영 기간 중 해당 요일 슬롯 없음
       return full ? `매월 ${pool.closedWeeks.join('·')}번째 일요일 정기휴관` : '정기휴관';
     }
     // 특별 운영(기간 한정 시간표·요금): specialSchedules:[{from,to?,weekdaySlots?,saturdaySlots?,sundaySlots?,weekdayPrice?,weekendPrice?,note?}]
@@ -827,8 +831,10 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
         const isExp=expanded[pool.id];
 
         const metaParts=[pool.area];
-        if(pool.feature) metaParts.push(pool.feature);
-        if(HIGHLIGHT_DEEP && hasDeep(pool)) metaParts.push('수심 2m');
+        const spMeta=specialFor(pool,selectedDate);
+        const feat=(spMeta && spMeta.feature) || pool.feature;
+        if(feat) metaParts.push(feat);
+        if(HIGHLIGHT_DEEP && hasDeep(pool) && !(spMeta && spMeta.feature)) metaParts.push('수심 2m');
         const meta=metaParts.join(' · ');
 
         let rightHtml='';
