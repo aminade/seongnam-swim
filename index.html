@@ -939,7 +939,7 @@ function nthSunday(y,m,n){ let c=0; for(let d=1;d<=31;d++){ const dt=new Date(y,
       const barCls=dur=> dur<=60?'sm':(dur<=90?'md':'');
       const rowsHtml=order.map(id=>{
         const pool=POOLS.find(p=>p.id===id);
-        if(isClosedDay(pool,date)) return `<div class="tlrow clo"><div class="name">${POOL_SHORT[id]}</div><div class="track"><span class="clow">${closedReason(pool,date)}</span></div></div>`;
+        if(isClosedDay(pool,date) || (!slotsFor(pool,date).length && (specialFor(pool,date)||{}).noSlotsReason)) return `<div class="tlrow clo"><div class="name">${POOL_SHORT[id]}</div><div class="track"><span class="clow">${closedReason(pool,date)}</span></div></div>`;
         const bars=slotsFor(pool,date).map(s=>{ const a=mins(s.time.split('~')[0]), b=mins(s.time.split('~')[1]), dur=b-a; return `<div class="bar ${barCls(dur)}" style="left:${xOf(a)}px;width:${(b-a)*PPM}px"></div>`; }).join('');
         return `<div class="tlrow"><div class="name">${POOL_SHORT[id]}</div><div class="track">${bars}</div></div>`;
       }).join('');
