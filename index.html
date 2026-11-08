@@ -578,7 +578,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const HIGHLIGHT_DEEP = props.highlightDeep !== false;
 
     const POOLS = [
-      { id:'tanchen', name:'탄천종합운동장', area:'분당구 야탑동', url:'https://spo.isdc.co.kr/tan_programGuide.do', closedWeeks:[1,3], closedOnHoliday:'lunar', feature:'50m 풀',
+      { id:'tanchen', name:'탄천종합운동장', area:'분당구 야탑동', url:'https://spo.isdc.co.kr/tan_programGuide.do', closedWeeks:[1,3], closedOnHoliday:'lunar', notOperating:[{from:'2026-12-01',to:'2026-12-31',label:'12월 50M 수영장 전광판 공사 휴장'}], /* 미운영: 11/5 공지(50M 수영장 전광판 교체 공사, 12/1~12/31 강습·월자유·일일자유 중단, 25M는 정상운영) */ feature:'50m 풀',
         weekdaySlots:[{time:'06:00~07:50',dur:120,note:'상급자·수심 2m'},{time:'12:00~13:50',dur:120},{time:'15:00~16:50',dur:120},{time:'19:00~20:50',dur:120,note:'상급자·수심 2m'}],
         saturdaySlots:[{time:'07:00~08:50',dur:120},{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
@@ -593,7 +593,7 @@ document.addEventListener('DOMContentLoaded', function() {
         saturdaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         sundaySlots:[{time:'10:00~11:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
         weekdayPrice:{adult:3000,teen:2500,child:2000}, weekendPrice:{adult:3600,teen:3000,child:2400} },
-      { id:'pangyo', name:'판교스포츠센터', area:'분당구 삼평동', url:'https://spo.isdc.co.kr/pgs_dailyFreeGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', notOperating:[{from:'2026-10-01',to:'2026-10-25',label:'10/1-10/25 보수공사 휴장'}], /* 미운영: 8/31 공지(기계·전기설비 보수 및 수영장 환경개선 공사, 전 시설 휴장) */ feature:null,
+      { id:'pangyo', name:'판교스포츠센터', area:'분당구 삼평동', url:'https://spo.isdc.co.kr/pgs_dailyFreeGuide.do', closedWeeks:[2,4], closedOnHoliday:'lunar', extraClosedDates:['2026-11-18'] /* 임시휴강: 11/5 공지(11/18 09~13시 전기설비 정기검사로 정전, 수영 강습·12시 자유이용 휴강) */, notOperating:[{from:'2026-10-01',to:'2026-10-25',label:'10/1-10/25 보수공사 휴장'}], /* 미운영: 8/31 공지(기계·전기설비 보수 및 수영장 환경개선 공사, 전 시설 휴장) */ feature:null,
         // 특별 운영: 같은 8/31 공지 — 공사 후 10/26~31은 강습 미운영, 평일도 주말처럼 2시간×3타임·3,600원
         specialSchedules:[{from:'2026-10-26',to:'2026-10-31', note:'10/26~31 강습 미운영 기간 — 평일도 자유수영 3타임 운영',
           weekdaySlots:[{time:'09:00~10:50',dur:120},{time:'13:00~14:50',dur:120},{time:'16:00~17:50',dur:120}],
@@ -642,9 +642,9 @@ document.addEventListener('DOMContentLoaded', function() {
         sundaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
         weekdayPrice:{adult:3000,teen:2500,child:1900}, weekendPrice:{adult:3000,teen:2500,child:1900}, priceNote:'성남시 관내 거주 만 48개월~만 18세 무료(회원가입 필요)' },
       // 수정유스센터: 신축 건물 시범운영 중(2026-07-25~별도 공지시까지). 정식 페이지(fmcs/32) 미반영, 공지사항(fmcs/22)만 근거.
-      { id:'yc_sujeong', name:'수정유스센터', area:'수정구 신흥동', url:'https://www.snyouth.or.kr/fmcs/22?action=read&action-value=7328334a4cc9faa679e34190215a7e1a', closedWeeks:[1,3], extraClosedDates:['2026-10-25'] /* 시범운영 중 일요일 미운영(11/2 정식 운영 전 마지막 4째 일요일) */, closedOnHoliday:'all', startsOn:'2026-07-25', feature:'유스센터 · 시범운영',
-        // 11/2부터 정식 운영(10/13 공지 '11월 자유수영 일일발권'): 평일 3타임, 주말 4부(90분), 요금 유료. 휴관일은 1·3주 일요일·법정공휴일.
-        specialSchedules:[{from:'2026-11-02', note:'11월 정식 운영 — 일일자유수영 유료(관내 청소년 만48개월~만18세 무료·회원가입 필수)',
+      { id:'yc_sujeong', name:'수정유스센터', area:'수정구 신흥동', url:'https://www.snyouth.or.kr/fmcs/22?action=read&action-value=7328334a4cc9faa679e34190215a7e1a', closedWeeks:[1,3], extraClosedDates:['2026-10-25'] /* 시범운영 중 일요일 미운영(11/2부터 일요일 일일자유수영 운영) */, closedOnHoliday:'all', startsOn:'2026-07-25', feature:'유스센터 · 시범운영',
+        // 11/2~: 10/13 공지 '11월 자유수영 일일발권'(표에 '임시자유수영 운영[별도 안내시까지]', 강좌는 '11~12월 한시적 시범운영') — 정식 오픈 공지 없음, 시범운영 지속. 평일 3타임, 주말 4부(90분), 요금 유료. 휴관일은 1·3주 일요일·법정공휴일.
+        specialSchedules:[{from:'2026-11-02', note:'11월 시범운영(임시자유수영, 별도 안내 시까지) — 일일자유수영 유료(관내 청소년 만48개월~만18세 무료·회원가입 필수)',
           weekdaySlots:[{time:'10:00~10:50',dur:50},{time:'11:00~11:50',dur:50},{time:'12:00~12:50',dur:50}],
           saturdaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
           sundaySlots:[{time:'09:00~10:30',dur:90},{time:'11:00~12:30',dur:90},{time:'13:30~15:00',dur:90},{time:'15:30~17:00',dur:90}],
