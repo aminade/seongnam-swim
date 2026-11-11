@@ -103,6 +103,17 @@ export async function spoPosts(board) {
     body: new URLSearchParams({ searchWord: '', page: '1', perPageNum: '10', brd_flg: '1', up_id }),
   });
   const rows = JSON.parse(text).data || [];
+  // 목록 API가 본문(content)을 비워 주는 글이 있다(금곡 12월 휴장일 안내: 이미지만 있는 글). 본문·첨부가 모두 비면 상세 페이지에서 다시 받는다.
+  await Promise.all(rows.filter(r => !r.content && !r.file_a && !r.file_b && !r.file_c).map(async r => {
+    try {
+      const html = await fetchText(`${SPO}/goNoticeView.do`, {
+        method: 'POST', timeout: 40000, backoff: SPO_BACKOFF, tries: SPO_TRIES, headers,
+        body: new URLSearchParams({ idx: String(r.idx) }),
+      });
+      const m = html.match(/<div id="content">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="btn/i) || html.match(/<div id="content">([\s\S]*?)<\/div>/i);
+      if (m && m[1].trim()) r.content = m[1];
+    } catch { /* 상세 조회 실패 시 기존처럼 빈 본문 */ }
+  }));
   return rows.map(r => {
     const files = [r.file_a, r.file_b, r.file_c];
     const attachments = files.map((name, no) => ({ name, no })).filter(f => f.name).map(f => ({
